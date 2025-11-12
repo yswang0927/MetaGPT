@@ -336,11 +336,13 @@ class ResourceReporter(BaseModel):
         role = CURRENT_ROLE.get(None)
         if role:
             # yswang modify
-            #role_name = role.name
             role_name = role.profile #role._setting
+            data["role"] = role.profile
+            data["role_name"] = role.name
         else:
-            role_name = os.environ.get("METAGPT_ROLE")
-        data["role"] = role_name
+            #role_name = os.environ.get("METAGPT_ROLE")
+            data["role"] = None
+            data["role_name"] = ''
 
         if extra:
             data["extra"] = extra

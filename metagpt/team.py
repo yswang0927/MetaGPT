@@ -107,7 +107,7 @@ class Team(BaseModel):
 
         # Human requirement.
         # yswang modify: 支持传入 send_to
-        if str:
+        if send_to:
             self.env.publish_message(Message(content=idea, send_to= {send_to} if isinstance(send_to, str) else send_to ))
         else:
             self.env.publish_message(Message(content=idea))
