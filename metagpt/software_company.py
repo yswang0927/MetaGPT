@@ -74,15 +74,77 @@ def generate_repo(
     return ctx.kwargs.get("project_path")
 
 
+async def generate_repo2(
+    idea,
+    investment=3.0,
+    n_round=5,
+    code_review=True,
+    run_tests=False,
+    implement=True,
+    project_name="",
+    inc=False,
+    project_path="",
+    reqa_file="",
+    max_auto_summarize_code=0,
+    recover_path=None,
+):
+    """Run the startup logic. Can be called from CLI or other Python scripts."""
+    from metagpt.config2 import config
+    from metagpt.context import Context
+    from metagpt.roles import (
+        Architect,
+        DataAnalyst,
+        Engineer2,
+        ProductManager,
+        TeamLeader,
+        ProjectManager
+    )
+    from metagpt.team import Team
+
+    config.update_via_cli(project_path, project_name, inc, reqa_file, max_auto_summarize_code)
+    ctx = Context(config=config)
+
+    if not recover_path:
+        company = Team(context=ctx)
+        company.hire(
+            [
+                TeamLeader(),
+                ProductManager(),
+                Architect(),
+                Engineer2(),
+                #ProjectManager(),
+                #DataAnalyst(),
+            ]
+        )
+
+        # if implement or code_review:
+        #     company.hire([Engineer(n_borg=5, use_code_review=code_review)])
+        #
+        # if run_tests:
+        #     company.hire([QaEngineer()])
+        #     if n_round < 8:
+        #         n_round = 8  # If `--run-tests` is enabled, at least 8 rounds are required to run all QA actions.
+    else:
+        stg_path = Path(recover_path)
+        if not stg_path.exists() or not str(stg_path).endswith("team"):
+            raise FileNotFoundError(f"{recover_path} not exists or not endswith `team`")
+
+        company = Team.deserialize(stg_path=stg_path, context=ctx)
+        idea = company.idea
+
+    company.invest(investment)
+    await company.run(n_round=n_round, idea=idea)
+
+
 @app.command("", help="Start a new project.")
 def startup(
-    idea: str = typer.Argument(None, help="Your innovative idea, such as 'Create a 2048 game.'"),
-    investment: float = typer.Option(default=3.0, help="Dollar amount to invest in the AI company."),
+    idea: str = typer.Argument(default="五子棋游戏", help="Your innovative idea, such as 'Create a 2048 game.'"),
+    investment: float = typer.Option(default=300.0, help="Dollar amount to invest in the AI company."),
     n_round: int = typer.Option(default=5, help="Number of rounds for the simulation."),
     code_review: bool = typer.Option(default=True, help="Whether to use code review."),
     run_tests: bool = typer.Option(default=False, help="Whether to enable QA for adding & running tests."),
     implement: bool = typer.Option(default=True, help="Enable or disable code implementation."),
-    project_name: str = typer.Option(default="", help="Unique project name, such as 'game_2048'."),
+    project_name: str = typer.Option(default="wuziqi", help="Unique project name, such as 'game_2048'."),
     inc: bool = typer.Option(default=False, help="Incremental mode. Use it to coop with existing repo."),
     project_path: str = typer.Option(
         default="",

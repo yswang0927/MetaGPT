@@ -338,7 +338,7 @@ def print_members(module, indent=0):
     """
     prefix = " " * indent
     for name, obj in inspect.getmembers(module):
-        print(name, obj)
+        #print(name, obj)
         if inspect.isclass(obj):
             print(f"{prefix}Class: {name}")
             # print the methods within the class
@@ -1241,3 +1241,27 @@ def download_model(file_url: str, target_folder: Path) -> Path:
         except requests.exceptions.HTTPError as err:
             logger.info(f"权重文件下载过程中发生错误: {err}")
     return file_path
+
+
+# yswang add
+def remove_code_blocks(text: str, lang: str = ""):
+    """
+    删除文本中由三个反引号（```）包围的代码块内容（包括反引号本身）
+    参数:
+        text: 原始输入文本
+        lang: 可选参数，指定要删除的代码块语言（如"python"、"java"）
+              若为空字符串（默认），则删除所有代码块；若指定语言，则只删除该语言的代码块
+    返回:
+        处理后的文本（已移除目标代码块）
+    """
+    if lang:
+        # 精准匹配指定语言：只匹配 ```lang 或 ``` lang（语言名后接空白/换行/代码块结束）
+        # \b 是单词边界，确保只匹配完整语言名（避免java匹配javascript）
+        # (?:\s|$) 匹配语言名后的空白字符或直接结束（避免语言名被截断）
+        pattern = rf'```\s*\b{re.escape(lang)}\b(?:\s|$)\n?(.+?)\s*```'
+    else:
+        # 匹配所有代码块（不指定语言）：``` 开头，``` 结尾
+        pattern = r'```\s*\n?(.+?)\s*```'
+
+    # 替换匹配到的内容为空字符串，使用DOTALL标志处理多行代码块
+    return re.sub(pattern, '', text, flags=re.DOTALL)

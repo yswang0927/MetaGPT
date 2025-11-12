@@ -132,7 +132,8 @@ class Engineer2(RoleZero):
         context = self.llm.format_msg(memory + [UserMessage(content=prompt)])
 
         async with EditorReporter(enable_llm_stream=True) as reporter:
-            await reporter.async_report({"type": "code", "filename": Path(path).name, "src_path": path}, "meta")
+            # yswang modify: `"src_path": path` -> `"src_path": str(path)`
+            await reporter.async_report({"type": "code", "filename": Path(path).name, "src_path": str(path)}, "meta")
             rsp = await self.llm.aask(context, system_msgs=[WRITE_CODE_SYSTEM_PROMPT])
             code = CodeParser.parse_code(text=rsp)
             await awrite(path, code)

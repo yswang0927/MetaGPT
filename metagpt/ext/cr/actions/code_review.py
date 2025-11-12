@@ -233,8 +233,9 @@ class CodeReview(Action):
         async with EditorReporter() as reporter:
             src_path = output_file
             cr_output_path = Path(output_file)
+            # yswang modify: `"src_path": src_path` -> `"src_path": str(src_path)`
             await reporter.async_report(
-                {"type": "CodeReview", "src_path": src_path, "filename": cr_output_path.name}, "meta"
+                {"type": "CodeReview", "src_path": str(src_path), "filename": cr_output_path.name}, "meta"
             )
             async with aiofiles.open(cr_output_path, "w", encoding="utf-8") as f:
                 await f.write(json.dumps(comments, ensure_ascii=False, indent=2))

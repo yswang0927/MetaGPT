@@ -154,8 +154,9 @@ class WriteCodeReview(Action):
 
         # if LBTM, rewrite code
         async with EditorReporter(enable_llm_stream=True) as reporter:
+            # yswang modify: `"src_path": doc.root_relative_path` -> `"src_path": str(doc.root_relative_path)`
             await reporter.async_report(
-                {"type": "code", "filename": filename, "src_path": doc.root_relative_path}, "meta"
+                {"type": "code", "filename": filename, "src_path": str(doc.root_relative_path)}, "meta"
             )
             rewrite_prompt = f"{context_prompt}\n{cr_rsp}\n{REWRITE_CODE_TEMPLATE.format(filename=filename)}"
             code_rsp = await self._aask(rewrite_prompt)

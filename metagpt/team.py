@@ -10,7 +10,7 @@
 
 import warnings
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Union, Iterable
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -27,6 +27,7 @@ from metagpt.utils.common import (
     serialize_decorator,
     write_json_file,
 )
+from metagpt.utils.report import ChatEventReporter
 
 
 class Team(BaseModel):
@@ -99,12 +100,17 @@ class Team(BaseModel):
         if self.cost_manager.total_cost >= self.cost_manager.max_budget:
             raise NoMoneyException(self.cost_manager.total_cost, f"Insufficient funds: {self.cost_manager.max_budget}")
 
-    def run_project(self, idea, send_to: str = ""):
+    # yswang modify: send_to: str -> send_to: Union[str, Iterable[str]]
+    def run_project(self, idea, send_to: Union[str, Iterable[str]] = ""):
         """Run a project from publishing user requirement."""
         self.idea = idea
 
         # Human requirement.
-        self.env.publish_message(Message(content=idea))
+        # yswang modify: 支持传入 send_to
+        if str:
+            self.env.publish_message(Message(content=idea, send_to= {send_to} if isinstance(send_to, str) else send_to ))
+        else:
+            self.env.publish_message(Message(content=idea))
 
     def start_project(self, idea, send_to: str = ""):
         """
@@ -119,15 +125,21 @@ class Team(BaseModel):
         )
         return self.run_project(idea=idea, send_to=send_to)
 
+    # yswang modify: send_to: str -> send_to: Union[str, Iterable[str]]
     @serialize_decorator
-    async def run(self, n_round=3, idea="", send_to="", auto_archive=True):
+    async def run(self, n_round: int = 3, idea: str = "", send_to: Union[str, Iterable[str]] = "", auto_archive: bool = True):
         """Run company until target round or no money"""
+        # yswang add
+        ChatEventReporter().report_sleeping()
+
         if idea:
             self.run_project(idea=idea, send_to=send_to)
 
         while n_round > 0:
             if self.env.is_idle:
                 logger.debug("All roles are idle.")
+                # yswang add
+                ChatEventReporter().report_sleeping(state=0)
                 break
             n_round -= 1
             self._check_balance()
@@ -135,4 +147,6 @@ class Team(BaseModel):
 
             logger.debug(f"max {n_round=} left.")
         self.env.archive(auto_archive)
+        # yswang add
+        ChatEventReporter().report_sleeping()
         return self.env.history

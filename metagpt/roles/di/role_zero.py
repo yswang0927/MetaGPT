@@ -39,7 +39,7 @@ from metagpt.tools.libs.editor import Editor
 from metagpt.tools.tool_recommend import BM25ToolRecommender, ToolRecommender
 from metagpt.tools.tool_registry import register_tool
 from metagpt.utils.common import any_to_str
-from metagpt.utils.report import ThoughtReporter
+from metagpt.utils.report import ThoughtReporter, ChatEventReporter, CommandReporter
 from metagpt.utils.role_zero_utils import (
     check_duplicates,
     format_terminal_output,
@@ -50,6 +50,8 @@ from metagpt.utils.role_zero_utils import (
     parse_images,
 )
 
+# yswang add
+from metagpt.strategy.communication import CURRENT_ROLE
 
 @register_tool(include_functions=["ask_human", "reply_to_human"])
 class RoleZero(Role):
@@ -98,6 +100,9 @@ class RoleZero(Role):
     use_fixed_sop: bool = False
     respond_language: str = ""  # Language for responding humans and publishing messages.
     use_summary: bool = True  # whether to summarize at the end
+
+    # yswang add 存储下当前think的uuid，用于传递给 CommandsReporter作为action:update中的message_id使用
+    msg_uuid: str = ""
 
     @model_validator(mode="after")
     def set_plan_and_tool(self) -> "RoleZero":
@@ -197,6 +202,8 @@ class RoleZero(Role):
 
     async def _think(self) -> bool:
         """Useful in 'react' mode. Use LLM to decide whether and what to do next."""
+        CURRENT_ROLE.set(self)
+
         # Compatibility
         if self.use_fixed_sop:
             return await super()._think()
@@ -209,6 +216,7 @@ class RoleZero(Role):
             self.planner.plan.goal = self.get_memories()[-1].content
             detect_language_prompt = DETECT_LANGUAGE_PROMPT.format(requirement=self.planner.plan.goal)
             self.respond_language = await self.llm.aask(detect_language_prompt)
+
         ### 1. Experience ###
         example = self._retrieve_experience()
 
@@ -249,9 +257,16 @@ class RoleZero(Role):
             current_task=current_task,
             instruction=instruction,
         )
+
         async with ThoughtReporter(enable_llm_stream=True) as reporter:
+            # yswang add 保存下当前思考消息ID，用于后续CommandReporter使用：每个command中都包含所属message
+            self.msg_uuid = reporter.get_uuid()
             await reporter.async_report({"type": "react"})
             self.command_rsp = await self.llm_cached_aask(req=req, system_msgs=[system_prompt], state_data=state_data)
+            # yswang
+            print(f"================== {self._setting} ThoughtReporter react 完整输出=======================")
+            print(self.command_rsp)
+            print("============================================")
 
         rsp_hist = [mem.content for mem in self.rc.memory.get()]
         self.command_rsp = await check_duplicates(
@@ -278,6 +293,10 @@ class RoleZero(Role):
         return super()._get_prefix() + f" The current time is {time_info}."
 
     async def _act(self) -> Message:
+        # yswang add
+        print(f"@@@@@@@@@@@ {self._setting} _act()")
+        CURRENT_ROLE.set(self)
+
         if self.use_fixed_sop:
             return await super()._act()
 
@@ -289,9 +308,10 @@ class RoleZero(Role):
             error_msg = commands
             self.rc.memory.add(UserMessage(content=error_msg, cause_by=RunCommand))
             return error_msg
-        logger.info(f"Commands: \n{commands}")
+
+        logger.debug(f"Commands: \n{commands}")
         outputs = await self._run_commands(commands)
-        logger.info(f"Commands outputs: \n{outputs}")
+        logger.debug(f"Commands outputs: \n{outputs}")
         self.rc.memory.add(UserMessage(content=outputs, cause_by=RunCommand))
 
         return AIMessage(
@@ -303,8 +323,12 @@ class RoleZero(Role):
     async def _react(self) -> Message:
         # NOTE: Diff 1: Each time landing here means news is observed, set todo to allow news processing in _think
         self._set_state(0)
+        # yswang add
+        CURRENT_ROLE.set(self)
+        ChatEventReporter().report_role_event(self.profile, event="thinking")
 
         # problems solvable by quick thinking doesn't need to a formal think-act cycle
+        # 能够通过快速思考解决的问题，无需经过正式的思考-行动循环。
         quick_rsp, _ = await self._quick_think()
         if quick_rsp:
             return quick_rsp
@@ -313,14 +337,17 @@ class RoleZero(Role):
         rsp = AIMessage(content="No actions taken yet", cause_by=Action)  # will be overwritten after Role _act
         while actions_taken < self.rc.max_react_loop:
             # NOTE: Diff 2: Keep observing within _react, news will go into memory, allowing adapting to new info
+            # 从消息缓冲区寻找需要自己处理的消息
             await self._observe()
 
             # think
             has_todo = await self._think()
             if not has_todo:
                 break
+            
+            logger.info(f"+++++ {self._setting}: {self.rc.state=}, will do {self.rc.todo}")
+
             # act
-            logger.debug(f"{self._setting}: {self.rc.state=}, will do {self.rc.todo}")
             rsp = await self._act()
             actions_taken += 1
 
@@ -347,26 +374,33 @@ class RoleZero(Role):
             return rsp_msg, ""
 
         # routing
+        # 调用LLM进行当前问题的意图识别: 是可以立刻直接答复 还是需要规划Task执行
         memory = self.get_memories(k=self.memory_k)
         context = self.llm.format_msg(memory + [UserMessage(content=QUICK_THINK_PROMPT)])
         async with ThoughtReporter() as reporter:
+            self.msg_uuid = reporter.get_uuid()
             await reporter.async_report({"type": "classify"})
             intent_result = await self.llm.aask(context, system_msgs=[self.format_quick_system_prompt()])
 
+        # QUICK/AMBIGUOUS → 直接用 LLM 快速回答
         if "QUICK" in intent_result or "AMBIGUOUS" in intent_result:  # llm call with the original context
             async with ThoughtReporter(enable_llm_stream=True) as reporter:
+                self.msg_uuid = reporter.get_uuid()
                 await reporter.async_report({"type": "quick"})
                 answer = await self.llm.aask(
                     self.llm.format_msg(memory),
                     system_msgs=[QUICK_RESPONSE_SYSTEM_PROMPT.format(role_info=self._get_prefix())],
                 )
+
             # If the answer contains the substring '[Message] from A to B:', remove it.
             pattern = r"\[Message\] from .+? to .+?:\s*"
             answer = re.sub(pattern, "", answer, count=1)
             if "command_name" in answer:
                 # an actual TASK intent misclassified as QUICK, correct it here, FIXME: a better way is to classify it correctly in the first place
+                #实际的“任务”意图被错误地分类为“快速”，请在此处更正。待修复：更好的方法是从一开始就正确分类。
                 answer = ""
                 intent_result = "TASK"
+        # 调用搜索增强问答
         elif "SEARCH" in intent_result:
             query = "\n".join(str(msg) for msg in memory)
             answer = await SearchEnhancedQA().run(query)
@@ -384,34 +418,61 @@ class RoleZero(Role):
 
     async def _run_commands(self, commands) -> str:
         outputs = []
-        for cmd in commands:
-            output = f"Command {cmd['command_name']} executed"
-            # handle special command first
-            if self._is_special_command(cmd):
-                special_command_output = await self._run_special_command(cmd)
-                outputs.append(output + ":" + special_command_output)
-                continue
-            # run command as specified by tool_execute_map
-            if cmd["command_name"] in self.tool_execution_map:
-                tool_obj = self.tool_execution_map[cmd["command_name"]]
-                try:
-                    if inspect.iscoroutinefunction(tool_obj):
-                        tool_output = await tool_obj(**cmd["args"])
-                    else:
-                        tool_output = tool_obj(**cmd["args"])
-                    if tool_output:
-                        output += f": {str(tool_output)}"
-                    outputs.append(output)
-                except Exception as e:
-                    tb = traceback.format_exc()
-                    logger.exception(str(e) + tb)
-                    outputs.append(output + f": {tb}")
-                    break  # Stop executing if any command fails
-            else:
-                outputs.append(f"Command {cmd['command_name']} not found.")
-                break
-        outputs = "\n\n".join(outputs)
+        # yswang add 使用自定义 CommandReporter 报送命令执行信息
+        output_message_cmds = ["TeamLeader.publish_message", "RoleZero.reply_to_human"]
+        with CommandReporter(message_uuid=self.msg_uuid) as reporter:
+            reporter.report({"type": "command"}, name="object")
+            for cmd in commands:
+                output = f"Command {cmd['command_name']} executed"
+                # yswang add
+                # 这两个特殊的命令，需要作为普通消息报送
+                is_output_msg = cmd["command_name"] in output_message_cmds
+                if is_output_msg:
+                    with ThoughtReporter() as reporter2:
+                        reporter2.report({"type":"quick"})
+                        reporter2.report(cmd["args"], name="content")
 
+                # reporter.report({"status":"running", **cmd}, name="content")
+                # handle special command first
+                if self._is_special_command(cmd):
+                    special_command_output = await self._run_special_command(cmd)
+                    outputs.append(output + ":" + special_command_output)
+
+                    if not is_output_msg:
+                        reporter.report({"status": "success", **cmd}, name="content")
+                    continue
+
+                # run command as specified by tool_execute_map
+                if cmd["command_name"] in self.tool_execution_map:
+                    tool_obj = self.tool_execution_map[cmd["command_name"]]
+                    try:
+                        if inspect.iscoroutinefunction(tool_obj):
+                            tool_output = await tool_obj(**cmd["args"])
+                        else:
+                            tool_output = tool_obj(**cmd["args"])
+                        if tool_output:
+                            output += f": {str(tool_output)}"
+                        outputs.append(output)
+
+                        # yswang
+                        if not is_output_msg:
+                            reporter.report({"status": "success", **cmd}, name="content")
+                    except Exception as e:
+                        tb = traceback.format_exc()
+                        logger.exception(str(e) + tb)
+                        outputs.append(output + f": {tb}")
+
+                        # yswang
+                        if not is_output_msg:
+                            reporter.report({"status": "failed", **cmd}, name="content")
+                        break  # Stop executing if any command fails
+                else:
+                    outputs.append(f"Command {cmd['command_name']} not found.")
+                    # yswang
+                    if not is_output_msg:
+                        reporter.report({"status": "not_found", **cmd}, name="content")
+                    break
+        outputs = "\n\n".join(outputs)
         return outputs
 
     def _is_special_command(self, cmd) -> bool:
@@ -476,11 +537,13 @@ class RoleZero(Role):
         memory = self.rc.memory.get(self.memory_k)
         # Ensure reply to the human before the "end" command is executed. Hard code k=5 for checking.
         if not any(["reply_to_human" in memory.content for memory in self.get_memories(k=5)]):
-            logger.info("manually reply to human")
+            logger.debug("manually reply to human")
             reply_to_human_prompt = REPORT_TO_HUMAN_PROMPT.format(respond_language=self.respond_language)
             async with ThoughtReporter(enable_llm_stream=True) as reporter:
+                self.msg_uuid = reporter.get_uuid()
                 await reporter.async_report({"type": "quick"})
                 reply_content = await self.llm.aask(self.llm.format_msg(memory + [UserMessage(reply_to_human_prompt)]))
+
             await self.reply_to_human(content=reply_content)
             self.rc.memory.add(AIMessage(content=reply_content, cause_by=RunCommand))
         outputs = ""

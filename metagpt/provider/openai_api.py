@@ -124,7 +124,7 @@ class OpenAILLM(BaseLLM):
                     usage = CompletionUsage(**choice0.usage)
                 has_finished = True
 
-        log_llm_stream("\n")
+        #log_llm_stream("\n")
         full_reply_content = "".join(collected_messages)
         if collected_reasoning_messages:
             self.reasoning_content = "".join(collected_reasoning_messages)
@@ -275,7 +275,7 @@ class OpenAILLM(BaseLLM):
             usage.prompt_tokens = count_message_tokens(messages, self.pricing_plan)
             usage.completion_tokens = count_output_tokens(rsp, self.pricing_plan)
         except Exception as e:
-            logger.warning(f"usage calculation failed: {e}")
+            logger.debug(f"usage calculation failed: {e}")
 
         return usage
 
