@@ -46,7 +46,7 @@ class MCTSRunner(Runner):
         text += f"Best node: {best_node.id}, score: {best_node.raw_reward}\n"
         text += f"Dev best node: {dev_best_node.id}, score: {dev_best_node.raw_reward}\n"
         text += f"Grader score: {additional_scores['grader']}\n"
-        print(text)
+        #print(text)
         results = [
             {
                 "best_node": best_node.id,

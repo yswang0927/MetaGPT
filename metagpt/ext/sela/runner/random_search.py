@@ -37,7 +37,7 @@ class RandomSearchRunner(Runner):
             di = Experimenter(node_id=str(i), use_reflection=self.args.reflection, role_timeout=self.args.role_timeout)
             di.role_dir = f"{di.role_dir}_{self.args.task}"
             requirement = user_requirement + EXPS_PROMPT.format(experience=exps[i])
-            print(requirement)
+            #print(requirement)
             score_dict = await self.run_di(di, requirement, run_idx=i)
             results.append(
                 {

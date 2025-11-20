@@ -107,7 +107,7 @@ class DataAnalyst(RoleZero):
 
             ### execute code ###
             result, success = await self.execute_code.run(code)
-            print(result)
+            #print(result)
 
             self.rc.working_memory.add(Message(content=result, role="user", cause_by=ExecuteNbCode))
 
@@ -137,7 +137,7 @@ class DataAnalyst(RoleZero):
             return
         result, success = await self.execute_code.run(code)
         if success:
-            print(result)
+            #print(result)
             data_info = DATA_INFO.format(info=result)
             self.rc.working_memory.add(Message(content=data_info, role="user", cause_by=CheckData))
 

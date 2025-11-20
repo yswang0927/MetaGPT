@@ -191,7 +191,7 @@ def generate_task_requirement(task_name, data_config, is_di=True, special_instru
         additional_instruction=additional_instruction,
         data_info_path=data_info_path,
     )
-    print(user_requirement)
+    #print(user_requirement)
     return user_requirement
 
 
