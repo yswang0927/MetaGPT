@@ -2,17 +2,15 @@ import asyncio
 import os
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Literal, Optional, Union, Iterable
-from urllib.parse import unquote, urlparse, urlunparse
+from typing import Any, Callable, Literal, Optional, Union
 from uuid import UUID, uuid4
 
-from aiohttp import ClientSession, UnixConnector
 from playwright.async_api import Page as AsyncPage
 from playwright.sync_api import Page as SyncPage
 from pydantic import BaseModel, Field, PrivateAttr
 
 from metagpt.const import METAGPT_REPORTER_DEFAULT_URL
-from metagpt.logs import create_llm_stream_queue, get_llm_stream_queue,logger
+from metagpt.logs import create_llm_stream_queue, get_llm_stream_queue
 
 try:
     import requests_unixsocket as requests
@@ -20,7 +18,11 @@ except ImportError:
     import requests
 
 # yswang add
-from metagpt.strategy.communication import CURRENT_ROLE, CURRENT_CHAT_ID, CLIENT_MSG_QUEUE
+from metagpt.chat.communication import (
+    CURRENT_CHAT_ID,
+    CLIENT_MSG_QUEUE,
+    StreamingRemoveCodeBlockFilter
+)
 
 
 class BlockType(str, Enum):
@@ -43,176 +45,6 @@ END_MARKER_NAME = "end_marker"
 END_MARKER_VALUE = "\x18\x19\x1B\x18\n"
 
 
-# yswang add
-class StreamingRemoveCodeBlockFilter:
-    """流式过滤器，用于删除 LLM 输出中的代码块内容，只保留非代码块内容"""
-    def __init__(self, block_type="json"):
-        """
-        Args:
-            block_type: 要过滤的代码块类型，如 "json", "python" 等
-        """
-        self.block_type = block_type
-        self.buffer = ""  # 缓冲区，存储待处理的内容
-        self.in_code_block = False  # 是否在代码块内部
-        self.start_marker = f"```{block_type}"
-        self.end_marker = "```"
-
-    def filter_chunk(self, chunk: str) -> str:
-        """
-        过滤单个 chunk
-        Args:
-            chunk: 流式输出的一个片段
-        Returns:
-            过滤后可以输出的内容
-        """
-        self.buffer += chunk
-        output = ""
-
-        while self.buffer:
-            if not self.in_code_block:
-                # 不在代码块内，查找开始标记
-                start_pos = self.buffer.find(self.start_marker)
-                if start_pos == -1:
-                    # 没找到开始标记，但需要保留足够长度以防标记被截断
-                    safe_length = len(self.buffer) - len(self.start_marker)
-                    if safe_length > 0:
-                        output += self.buffer[:safe_length]
-                        self.buffer = self.buffer[safe_length:]
-                    break
-                else:
-                    # 找到开始标记
-                    output += self.buffer[:start_pos]
-                    self.buffer = self.buffer[start_pos + len(self.start_marker):]
-                    self.in_code_block = True
-            else:
-                # 在代码块内，查找结束标记
-                end_pos = self.buffer.find(self.end_marker)
-
-                if end_pos == -1:
-                    # 没找到结束标记，需要保留足够长度以防标记被截断
-                    safe_length = len(self.buffer) - len(self.end_marker)
-                    if safe_length > 0:
-                        self.buffer = self.buffer[safe_length:]
-                    break
-                else:
-                    # 找到结束标记，跳过代码块内容
-                    self.buffer = self.buffer[end_pos + len(self.end_marker):]
-                    self.in_code_block = False
-
-        return output
-
-    def finalize(self) -> str:
-        """
-        处理完所有 chunk 后调用，输出剩余缓冲区内容
-        Returns:
-            剩余的可输出内容
-        """
-        if not self.in_code_block:
-            output = self.buffer
-            self.buffer = ""
-            return output
-        return ""
-
-    def reset(self):
-        """重置过滤器状态"""
-        self.buffer = ""
-        self.in_code_block = False
-
-
-class StreamingExtractCodeBlockFilter:
-    """流式提取代码块"""
-    def __init__(self, lang: Union[str, Iterable[str]] = "*"):
-        """
-        Args:
-            lang:
-                - "" or "*" or []: 提取所有代码块（任意语言）
-                - "json": 仅提取 ```json 块
-                - ["json", "yaml"]: 提取 json 或 yaml 块
-        """
-        if "" == lang or "*" == lang:
-            self.allowed_langs = None  # 表示全部允许
-        elif isinstance(lang, str):
-            self.allowed_langs = {lang}
-        else:
-            if len(lang) == 0:
-                self.allowed_langs = None
-            else:
-                self.allowed_langs = set(lang)
-
-        self.buffer = ""
-        self.in_code_block = False
-        self.end_marker = "```"
-
-    def _match_start(self, s: str) -> tuple[int, int] | None:
-        """找到第一个合法 ```lang 行，并判断 lang 是否在 allowed_langs 中"""
-        i = 0
-        while i < len(s):
-            pos = s.find("```", i)
-            if pos == -1:
-                break
-
-            # 解析语言名：从 ``` 后到行尾（\n / \r\n / EOF）
-            lang_start = pos + 3
-            lang_end = lang_start
-            while lang_end < len(s) and s[lang_end] not in "\r\n":
-                lang_end += 1
-            lang = s[lang_start:lang_end].strip()
-
-            # 精确匹配：避免 java/javascript 前缀问题
-            if self.allowed_langs is None or lang in self.allowed_langs:
-                # 跳过整行（包括 \r\n 或 \n）
-                next_pos = lang_end
-                if next_pos < len(s) and s[next_pos] == '\r':
-                    next_pos += 1
-                if next_pos < len(s) and s[next_pos] == '\n':
-                    next_pos += 1
-                return (pos, next_pos)
-
-            i = pos + 3  # 继续搜索
-        return None
-
-    def filter_chunk(self, chunk: str) -> str:
-        self.buffer += chunk
-        output = ""
-
-        while self.buffer:
-            if not self.in_code_block:
-                res = self._match_start(self.buffer)
-                if res is None:
-                    # 无匹配：丢弃非代码内容，保留残余
-                    safe_len = len(self.buffer) - 6  # min: ```x\n
-                    if safe_len > 0:
-                        self.buffer = self.buffer[safe_len:]
-                    break
-                else:
-                    _, content_start = res
-                    self.buffer = self.buffer[content_start:]
-                    self.in_code_block = True
-
-            else:
-                end_pos = self.buffer.find(self.end_marker)
-                if end_pos == -1:
-                    output += self.buffer
-                    self.buffer = ""
-                    break
-                else:
-                    output += self.buffer[:end_pos]
-                    self.buffer = self.buffer[end_pos + 3:]  # len("```") == 3
-                    self.in_code_block = False
-
-        return output
-
-    def finalize(self) -> str:
-        out = self.buffer if self.in_code_block else ""
-        self.buffer = ""
-        self.in_code_block = False
-        return out
-
-    def reset(self):
-        self.buffer = ""
-        self.in_code_block = False
-
-
 class ResourceReporter(BaseModel):
     """Base class for resource reporting."""
 
@@ -221,13 +53,26 @@ class ResourceReporter(BaseModel):
     enable_llm_stream: bool = Field(False, description="Indicates whether to connect to an LLM stream for reporting")
     callback_url: str = Field(METAGPT_REPORTER_DEFAULT_URL, description="The URL to which the report should be sent")
     _llm_task: Optional[asyncio.Task] = PrivateAttr(None)
-    # yswang add 增加 _value_type 用于记录首次发送的 value: {type:'xxx'}
-    _value_type: str = ""
-    _content_index: int = 0
+    # yswang add
+    chat_id: str = Field("", description="The chat_id that is reporting the resource")
+    # role 不能参与主动序列化，否则会引起循环依赖，因为在 Role会使用 Reporter
+    role: Any = Field(None, description="The role that is reporting the resource", exclude=True)
+    _value_type: str = PrivateAttr("") # 增加 _value_type 用于记录首次发送的 value: {type:'xxx'}
+    _content_index: int = PrivateAttr(0)
 
     # yswang add
+    def get_id(self):
+        return str(self.uuid.hex)
+
     def get_uuid(self):
-        return str(self.uuid)
+        return str(self.uuid.hex)
+
+    def set_chat_id(self, chat_id: str):
+        self.chat_id = chat_id
+
+    def set_role(self, role: Any):
+        self.role = role
+
 
     def report(self, value: Any, name: str, extra: Optional[dict] = None):
         """Synchronously report resource observation data.
@@ -277,29 +122,32 @@ class ResourceReporter(BaseModel):
     def _report(self, value: Any, name: str, extra: Optional[dict] = None):
         data = self._format_data(value, name, extra)
         #if self.block != BlockType.THOUGHT:
-        print(f">>>> {self.block} _report >> {data}")
+        #print(f">>>> {self.block} _report >> {data}")
 
         # yswang add 向消息队列推送消息，便于显示在界面上
         client_id = CURRENT_CHAT_ID.get(None)
         if client_id and data:
             CLIENT_MSG_QUEUE.put_nowait((client_id, data))
 
+        """
         if not self.callback_url:
             return
         resp = requests.post(self.callback_url, json=data)
         resp.raise_for_status()
         return resp.text
+        """
 
     async def _async_report(self, value: Any, name: str, extra: Optional[dict] = None):
         data = self._format_data(value, name, extra)
         #if self.block != BlockType.THOUGHT:
-        print(f">>>> {self.block} _async_report>>> {data}")
+        #print(f">>>> {self.block} _async_report>>> {data}")
 
         # yswang add 向消息队列推送消息，便于显示在界面上
         client_id = CURRENT_CHAT_ID.get(None)
         if client_id and data:
             CLIENT_MSG_QUEUE.put_nowait((client_id, data))
 
+        """
         if not self.callback_url:
             return
         url = self.callback_url
@@ -316,10 +164,11 @@ class ResourceReporter(BaseModel):
             async with client.post(url, json=data) as resp:
                 resp.raise_for_status()
                 return await resp.text()
+        """
 
     def _format_data(self, value, name, extra):
         self._content_index += 1
-        data = self.model_dump(mode="json", exclude=("callback_url", "llm_stream", "enable_llm_stream"))
+        data = self.model_dump(mode="json", exclude=("callback_url", "llm_stream", "enable_llm_stream", "role"))
         if isinstance(value, BaseModel):
             value = value.model_dump(mode="json")
         elif isinstance(value, Path):
@@ -333,24 +182,23 @@ class ResourceReporter(BaseModel):
             value = os.path.abspath(value)
         data["value"] = value
         data["name"] = name
-        role = CURRENT_ROLE.get(None)
-        if role:
+
+        #role = CURRENT_ROLE.get(None)
+        if self.role is not None:
             # yswang modify
-            role_name = role.profile #role._setting
-            data["role"] = role.profile
-            data["role_name"] = role.name
+            #role_name = role.profile #role._setting
+            data["role"] = self.role.profile
+            data["role_name"] = self.role.name
         else:
             #role_name = os.environ.get("METAGPT_ROLE")
-            data["role"] = None
+            data["role"] = ''
             data["role_name"] = ''
 
         if extra:
             data["extra"] = extra
 
         # yswang add
-        chat_id = CURRENT_CHAT_ID.get(None)
-        if chat_id:
-            data["chat_id"] = chat_id
+        data["chat_id"] = self.chat_id
         if self._value_type:
             data["type"] = self._value_type
         data["content_index"] = self._content_index

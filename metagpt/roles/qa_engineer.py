@@ -81,6 +81,9 @@ class QaEngineer(Role):
 
             context = await WriteTest(i_context=context, context=self.context, llm=self.llm).run()
             async with EditorReporter(enable_llm_stream=True) as reporter:
+                # yswang add
+                reporter.set_role(self)
+                reporter.set_chat_id(self.context.get_chat_id())
                 await reporter.async_report({"type": "test", "filename": test_doc.filename}, "meta")
 
                 doc = await self.repo.tests.save_doc(

@@ -7,7 +7,7 @@
 """
 from contextvars import ContextVar
 from asyncio import Queue
-from typing import Any
+from typing import Any, Union, Iterable
 from datetime import datetime
 from uuid import uuid4
 
@@ -499,3 +499,172 @@ def format_block_terminal(report_msg):
         """命令执行结束"""
         return ("timeline:complete", msg)
     return None
+
+
+class StreamingRemoveCodeBlockFilter:
+    """流式过滤器，用于删除 LLM 输出中的代码块内容，只保留非代码块内容"""
+    def __init__(self, block_type="json"):
+        """
+        Args:
+            block_type: 要过滤的代码块类型，如 "json", "python" 等
+        """
+        self.block_type = block_type
+        self.buffer = ""  # 缓冲区，存储待处理的内容
+        self.in_code_block = False  # 是否在代码块内部
+        self.start_marker = f"```{block_type}"
+        self.end_marker = "```"
+
+    def filter_chunk(self, chunk: str) -> str:
+        """
+        过滤单个 chunk
+        Args:
+            chunk: 流式输出的一个片段
+        Returns:
+            过滤后可以输出的内容
+        """
+        self.buffer += chunk
+        output = ""
+
+        while self.buffer:
+            if not self.in_code_block:
+                # 不在代码块内，查找开始标记
+                start_pos = self.buffer.find(self.start_marker)
+                if start_pos == -1:
+                    # 没找到开始标记，但需要保留足够长度以防标记被截断
+                    safe_length = len(self.buffer) - len(self.start_marker)
+                    if safe_length > 0:
+                        output += self.buffer[:safe_length]
+                        self.buffer = self.buffer[safe_length:]
+                    break
+                else:
+                    # 找到开始标记
+                    output += self.buffer[:start_pos]
+                    self.buffer = self.buffer[start_pos + len(self.start_marker):]
+                    self.in_code_block = True
+            else:
+                # 在代码块内，查找结束标记
+                end_pos = self.buffer.find(self.end_marker)
+
+                if end_pos == -1:
+                    # 没找到结束标记，需要保留足够长度以防标记被截断
+                    safe_length = len(self.buffer) - len(self.end_marker)
+                    if safe_length > 0:
+                        self.buffer = self.buffer[safe_length:]
+                    break
+                else:
+                    # 找到结束标记，跳过代码块内容
+                    self.buffer = self.buffer[end_pos + len(self.end_marker):]
+                    self.in_code_block = False
+
+        return output
+
+    def finalize(self) -> str:
+        """
+        处理完所有 chunk 后调用，输出剩余缓冲区内容
+        Returns:
+            剩余的可输出内容
+        """
+        if not self.in_code_block:
+            output = self.buffer
+            self.buffer = ""
+            return output
+        return ""
+
+    def reset(self):
+        """重置过滤器状态"""
+        self.buffer = ""
+        self.in_code_block = False
+
+
+class StreamingExtractCodeBlockFilter:
+    """流式提取代码块"""
+    def __init__(self, lang: Union[str, Iterable[str]] = "*"):
+        """
+        Args:
+            lang:
+                - "" or "*" or []: 提取所有代码块（任意语言）
+                - "json": 仅提取 ```json 块
+                - ["json", "yaml"]: 提取 json 或 yaml 块
+        """
+        if "" == lang or "*" == lang:
+            self.allowed_langs = None  # 表示全部允许
+        elif isinstance(lang, str):
+            self.allowed_langs = {lang}
+        else:
+            if len(lang) == 0:
+                self.allowed_langs = None
+            else:
+                self.allowed_langs = set(lang)
+
+        self.buffer = ""
+        self.in_code_block = False
+        self.end_marker = "```"
+
+    def _match_start(self, s: str) -> tuple[int, int] | None:
+        """找到第一个合法 ```lang 行，并判断 lang 是否在 allowed_langs 中"""
+        i = 0
+        while i < len(s):
+            pos = s.find("```", i)
+            if pos == -1:
+                break
+
+            # 解析语言名：从 ``` 后到行尾（\n / \r\n / EOF）
+            lang_start = pos + 3
+            lang_end = lang_start
+            while lang_end < len(s) and s[lang_end] not in "\r\n":
+                lang_end += 1
+            lang = s[lang_start:lang_end].strip()
+
+            # 精确匹配：避免 java/javascript 前缀问题
+            if self.allowed_langs is None or lang in self.allowed_langs:
+                # 跳过整行（包括 \r\n 或 \n）
+                next_pos = lang_end
+                if next_pos < len(s) and s[next_pos] == '\r':
+                    next_pos += 1
+                if next_pos < len(s) and s[next_pos] == '\n':
+                    next_pos += 1
+                return (pos, next_pos)
+
+            i = pos + 3  # 继续搜索
+        return None
+
+    def filter_chunk(self, chunk: str) -> str:
+        self.buffer += chunk
+        output = ""
+
+        while self.buffer:
+            if not self.in_code_block:
+                res = self._match_start(self.buffer)
+                if res is None:
+                    # 无匹配：丢弃非代码内容，保留残余
+                    safe_len = len(self.buffer) - 6  # min: ```x\n
+                    if safe_len > 0:
+                        self.buffer = self.buffer[safe_len:]
+                    break
+                else:
+                    _, content_start = res
+                    self.buffer = self.buffer[content_start:]
+                    self.in_code_block = True
+
+            else:
+                end_pos = self.buffer.find(self.end_marker)
+                if end_pos == -1:
+                    output += self.buffer
+                    self.buffer = ""
+                    break
+                else:
+                    output += self.buffer[:end_pos]
+                    self.buffer = self.buffer[end_pos + 3:]  # len("```") == 3
+                    self.in_code_block = False
+
+        return output
+
+    def finalize(self) -> str:
+        out = self.buffer if self.in_code_block else ""
+        self.buffer = ""
+        self.in_code_block = False
+        return out
+
+    def reset(self):
+        self.buffer = ""
+        self.in_code_block = False

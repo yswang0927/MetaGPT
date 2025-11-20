@@ -1137,3 +1137,10 @@ class Editor(BaseModel):
         token_count = len(encoding.encode(content))
         mix_token_count = mix_token_count or DEFAULT_MIN_TOKEN_COUNT
         return token_count >= mix_token_count
+
+    # yswang add
+    def set_chat_id(self, chat_id: str):
+        self.resource.set_chat_id(chat_id)
+
+    def set_role(self, role):
+        self.resource.set_role(role)

@@ -212,6 +212,9 @@ class CodeReview(Action):
 
         result = []
         async with EditorReporter(enable_llm_stream=True) as reporter:
+            # yswang add
+            reporter.set_chat_id(self.chat_id)
+            reporter.set_role(self.role)
             log_cr_output_path = Path(output_file).with_suffix(".log")
             await reporter.async_report(
                 {"src_path": str(log_cr_output_path), "filename": log_cr_output_path.name}, "meta"
@@ -231,6 +234,9 @@ class CodeReview(Action):
                         result.append(comment)
 
         async with EditorReporter() as reporter:
+            # yswang add
+            reporter.set_chat_id(self.chat_id)
+            reporter.set_role(self.role)
             src_path = output_file
             cr_output_path = Path(output_file)
             # yswang modify: `"src_path": src_path` -> `"src_path": str(src_path)`

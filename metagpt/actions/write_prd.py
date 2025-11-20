@@ -218,6 +218,9 @@ class WritePRD(Action):
     async def _handle_new_requirement(self, req: Document) -> ActionOutput:
         """handle new requirement"""
         async with DocsReporter(enable_llm_stream=True) as reporter:
+            # yswang add
+            reporter.set_chat_id(self.chat_id)
+            reporter.set_role(self.role)
             await reporter.async_report({"type": "prd"}, "meta")
             node = await self._new_prd(req.content)
             await self._rename_workspace(node)
@@ -262,6 +265,9 @@ class WritePRD(Action):
 
     async def _update_prd(self, req: Document, prd_doc: Document) -> Document:
         async with DocsReporter(enable_llm_stream=True) as reporter:
+            # yswang add
+            reporter.set_chat_id(self.chat_id)
+            reporter.set_role(self.role)
             await reporter.async_report({"type": "prd"}, "meta")
             new_prd_doc: Document = await self._merge(req=req, related_doc=prd_doc)
             await self.repo.docs.prd.save_doc(doc=new_prd_doc)
@@ -301,6 +307,9 @@ class WritePRD(Action):
             extra_info=to_markdown_code_block(val=extra_info),
         )
         async with DocsReporter(enable_llm_stream=True) as reporter:
+            # yswang add
+            reporter.set_chat_id(self.chat_id)
+            reporter.set_role(self.role)
             await reporter.async_report({"type": "prd"}, "meta")
             req = Document(content=content)
             if not legacy_prd_filename:

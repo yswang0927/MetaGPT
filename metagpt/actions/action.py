@@ -40,6 +40,11 @@ class Action(SerializationMixin, ContextMixin, BaseModel):
     #   Using `None` to use the `llm` configuration in the `config2.yaml`.
     llm_name_or_type: Optional[str] = None
 
+    # yswang add
+    chat_id: str = Field("", description="The chat_id that is run the Action")
+    # role 不能参与主动序列化，否则会引起循环依赖，因为在 Role会使用 Reporter
+    role: Any = Field(None, description="The role that is run the Action", exclude=True)
+
     @model_validator(mode="after")
     @classmethod
     def _update_private_llm(cls, data: Any) -> Any:
@@ -117,3 +122,10 @@ class Action(SerializationMixin, ContextMixin, BaseModel):
         """Set `private_context` and `context` to the same `Context` object."""
         if not self.private_context:
             self.private_context = self.context
+
+    # yswang add
+    def set_chat_id(self, chat_id: str):
+        self.chat_id = chat_id
+
+    def set_role(self, role: Any):
+        self.role = role

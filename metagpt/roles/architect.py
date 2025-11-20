@@ -51,6 +51,11 @@ class Architect(RoleZero):
         # Set events or actions the Architect should watch or be aware of
         self._watch({WritePRD})
 
+    # yswang add
+    def model_post_init(self, __context):
+        self.terminal.set_chat_id(self.context.get_chat_id())
+        self.terminal.set_role(self)
+
     def _retrieve_experience(self) -> str:
         return ARCHITECT_EXAMPLE
 

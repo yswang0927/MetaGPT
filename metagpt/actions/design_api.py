@@ -189,6 +189,9 @@ class WriteDesign(Action):
         prd = await Document.load(filename=filename, project_path=self.repo.workdir)
         old_system_design_doc = await self.repo.docs.system_design.get(root_relative_path.name)
         async with DocsReporter(enable_llm_stream=True) as reporter:
+            # yswang add
+            reporter.set_chat_id(self.chat_id)
+            reporter.set_role(self.role)
             await reporter.async_report({"type": "design"}, "meta")
             if not old_system_design_doc:
                 system_design = await self._new_system_design(context=prd.content)
@@ -253,6 +256,9 @@ class WriteDesign(Action):
             prd=to_markdown_code_block(prd_content),
         )
         async with DocsReporter(enable_llm_stream=True) as reporter:
+            # yswang add
+            reporter.set_chat_id(self.chat_id)
+            reporter.set_role(self.role)
             await reporter.async_report({"type": "design"}, "meta")
             if not legacy_design_filename:
                 node = await self._new_system_design(context=context)

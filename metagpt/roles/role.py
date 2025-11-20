@@ -49,7 +49,7 @@ from metagpt.utils.common import any_to_name, any_to_str, role_raise_decorator
 from metagpt.utils.repair_llm_raw_output import extract_state_value_from_output
 
 # yswang add
-from metagpt.strategy.communication import CURRENT_ROLE
+from metagpt.chat.communication import CURRENT_ROLE
 
 PREFIX_TEMPLATE = """You are a {profile}, named {name}, your goal is {goal}. """
 CONSTRAINT_TEMPLATE = "the constraint is {constraints}. "
@@ -234,6 +234,9 @@ class Role(BaseRole, SerializationMixin, ContextMixin, BaseModel):
         override = not action.private_config
         action.set_llm(self.llm, override=override)
         action.set_prefix(self._get_prefix())
+        # yswang add
+        action.set_role(self)
+        action.set_chat_id(self.context.get_chat_id())
 
     def set_action(self, action: Action):
         """Add action to the role."""
@@ -428,9 +431,9 @@ class Role(BaseRole, SerializationMixin, ContextMixin, BaseModel):
         # Design Rules:
         # If you need to further categorize Message objects, you can do so using the Message.set_meta function.
         # msg_buffer is a receiving buffer, avoid adding message data and operations to msg_buffer.
-        news_text = [f"{i.role}: {i.content[:20]}..." for i in self.rc.news]
+        news_text = [f"{i.role}: {i.content[:40]}..." for i in self.rc.news]
         if news_text:
-            logger.debug(f"{self._setting} observed: {news_text}")
+            logger.info(f"😴 {self._setting} observed: {news_text}")
         return len(self.rc.news)
 
     def publish_message(self, msg):

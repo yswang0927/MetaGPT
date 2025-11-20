@@ -101,6 +101,9 @@ class ModifyCode(Action):
             patch_file = output_dir / f"{patch_target_file_name}.patch"
             patch_file.parent.mkdir(exist_ok=True, parents=True)
             async with EditorReporter(enable_llm_stream=True) as reporter:
+                # yswang add
+                reporter.set_chat_id(self.chat_id)
+                reporter.set_role(self.role)
                 await reporter.async_report(
                     {"type": "Patch", "src_path": str(patch_file), "filename": patch_file.name}, "meta"
                 )

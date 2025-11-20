@@ -153,6 +153,9 @@ class WriteCode(Action):
             )
         logger.info(f"Writing {coding_context.filename}..")
         async with EditorReporter(enable_llm_stream=True) as reporter:
+            # yswang add
+            reporter.set_chat_id(self.chat_id)
+            reporter.set_role(self.role)
             await reporter.async_report({"type": "code", "filename": coding_context.filename}, "meta")
             code = await self.write_code(prompt)
             if not coding_context.code_doc:

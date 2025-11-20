@@ -75,6 +75,7 @@ def generate_repo(
 
 
 async def generate_repo2(
+    chat_id,
     idea,
     investment=3.0,
     n_round=5,
@@ -103,6 +104,8 @@ async def generate_repo2(
 
     config.update_via_cli(project_path, project_name, inc, reqa_file, max_auto_summarize_code)
     ctx = Context(config=config)
+    # yswang add
+    ctx.set_chat_id(chat_id)
 
     if not recover_path:
         company = Team(context=ctx)

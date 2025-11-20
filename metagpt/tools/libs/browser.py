@@ -209,3 +209,10 @@ class Browser(BaseModel):
 
     async def __aexit__(self, *args, **kwargs):
         await self.stop()
+
+    # yswang add
+    def set_chat_id(self, chat_id: str):
+        self.reporter.set_chat_id(chat_id)
+
+    def set_role(self, role):
+        self.reporter.set_role(role)

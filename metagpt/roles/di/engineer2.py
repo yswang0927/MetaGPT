@@ -54,6 +54,12 @@ class Engineer2(RoleZero):
     output_diff: str = ""
     max_react_loop: int = 40
 
+    # yswang add
+    def model_post_init(self, __context):
+        self.terminal.set_chat_id(self.context.get_chat_id())
+        self.terminal.set_role(self)
+
+
     async def _think(self) -> bool:
         await self._format_instruction()
         res = await super()._think()
@@ -132,6 +138,9 @@ class Engineer2(RoleZero):
         context = self.llm.format_msg(memory + [UserMessage(content=prompt)])
 
         async with EditorReporter(enable_llm_stream=True) as reporter:
+            # yswang add
+            reporter.set_chat_id(self.context.get_chat_id())
+            reporter.set_role(self)
             # yswang modify: `"src_path": path` -> `"src_path": str(path)`
             await reporter.async_report({"type": "code", "filename": Path(path).name, "src_path": str(path)}, "meta")
             rsp = await self.llm.aask(context, system_msgs=[WRITE_CODE_SYSTEM_PROMPT])

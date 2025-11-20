@@ -136,6 +136,9 @@ class WriteTasks(Action):
         system_design_doc = await Document.load(filename=filename, project_path=self.repo.workdir)
         task_doc = await self.repo.docs.task.get(root_relative_path.name)
         async with DocsReporter(enable_llm_stream=True) as reporter:
+            # yswang add
+            reporter.set_role(self.role)
+            reporter.set_chat_id(self.chat_id)
             await reporter.async_report({"type": "task"}, "meta")
             if task_doc:
                 task_doc = await self._merge(system_design_doc=system_design_doc, task_doc=task_doc)
@@ -185,6 +188,9 @@ class WriteTasks(Action):
             context += to_markdown_code_block(content)
 
         async with DocsReporter(enable_llm_stream=True) as reporter:
+            # yswang add
+            reporter.set_role(self.role)
+            reporter.set_chat_id(self.chat_id)
             await reporter.async_report({"type": "task"}, "meta")
             node = await self._run_new_tasks(context)
             file_content = node.instruct_content.model_dump_json()

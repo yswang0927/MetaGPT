@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -62,10 +63,13 @@ class Context(BaseModel):
 
     kwargs: AttrDict = AttrDict()
     config: Config = Field(default_factory=Config.default)
-
     cost_manager: CostManager = CostManager()
-
     _llm: Optional[BaseLLM] = None
+
+    # yswang add
+    chat_id: str = ""
+    # 当前对话的文件工作目录，例如：/home/{user}/data/chats/{chat_id}/workspace
+    working_dir: Path = None
 
     def new_environ(self):
         """Return a new os.environ object"""
@@ -125,3 +129,10 @@ class Context(BaseModel):
         cost_manager = serialized_data.get("cost_manager")
         if cost_manager:
             self.cost_manager.model_validate_json(cost_manager)
+
+    # yswang add
+    def set_chat_id(self, chat_id: str):
+        self.chat_id = chat_id
+
+    def get_chat_id(self) -> str:
+        return self.chat_id

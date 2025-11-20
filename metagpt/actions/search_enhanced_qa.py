@@ -125,6 +125,9 @@ class SearchEnhancedQA(Action):
             ValueError: If the query is invalid.
         """
         async with self._reporter:
+            # yswang add
+            self._reporter.set_role(self.role)
+            self._reporter.set_chat_id(self.chat_id)
             await self._reporter.async_report({"type": "search", "stage": "init"})
             self._validate_query(query)
 
@@ -210,6 +213,9 @@ class SearchEnhancedQA(Action):
         """
 
         relevant_urls = await self._collect_relevant_links(query)
+        # yswang add
+        self._reporter.set_role(self.role)
+        self._reporter.set_chat_id(self.chat_id)
         await self._reporter.async_report({"type": "search", "stage": "searching", "urls": relevant_urls})
         if not relevant_urls:
             logger.warning(f"No relevant URLs found for query: {query}")
@@ -253,6 +259,9 @@ class SearchEnhancedQA(Action):
         contents = await self._fetch_web_contents(urls)
 
         summaries = {}
+        # yswang add
+        self._reporter.set_role(self.role)
+        self._reporter.set_chat_id(self.chat_id)
         await self._reporter.async_report(
             {"type": "search", "stage": "browsing", "pages": [i.model_dump() for i in contents]}
         )
@@ -287,6 +296,9 @@ class SearchEnhancedQA(Action):
         system_prompt = SEARCH_ENHANCED_QA_SYSTEM_PROMPT.format(context=context)
 
         async with ThoughtReporter(uuid=self._reporter.uuid, enable_llm_stream=True) as reporter:
+            # yswang add
+            reporter.set_role(self.role)
+            reporter.set_chat_id(self.chat_id)
             await reporter.async_report({"type": "search", "stage": "answer"})
             rsp = await self._aask(query, [system_prompt])
         return rsp
