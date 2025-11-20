@@ -48,7 +48,7 @@ class Terminal:
         }
         # yswang add
         self.chat_id = ""
-        self.role = None;
+        self.role = None
 
     async def _start_process(self):
         # Start a persistent shell process
@@ -173,6 +173,9 @@ class Terminal:
 
     async def _read_and_process_output(self, cmd, daemon=False) -> str:
         async with self.observer as observer:
+            # yswang add
+            observer.set_role(self.role)
+            observer.set_chat_id(self.chat_id)
             cmd_output = []
             await observer.async_report(cmd + self.command_terminator, "cmd")
             # report the command
@@ -216,6 +219,7 @@ class Terminal:
         return self.chat_id
 
     def set_role(self, role):
+        self.role = role
         self.observer.set_role(role)
 
 
