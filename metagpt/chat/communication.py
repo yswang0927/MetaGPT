@@ -11,12 +11,6 @@ from typing import Any, Union, Iterable
 from datetime import datetime
 from uuid import uuid4
 
-# 实时存储当前正在工作的角色信息
-CURRENT_ROLE: ContextVar[Any] = ContextVar("current_role")
-
-# 存储当前的对话ID
-CURRENT_CHAT_ID: ContextVar[str] = ContextVar("current_chat_id")
-
 # 消息队列，接收 `report.py` 推送的消息，被 websocket 进行消费
 # 数据格式：(client_id, msg)
 CLIENT_MSG_QUEUE = Queue()
