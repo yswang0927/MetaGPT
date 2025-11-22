@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FastAPI Page</title>
+    <link href="/static/style.css" rel="stylesheet">
+    <style>
+        html,body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+        }
+        *, *::after, *::before {
+            box-sizing: border-box;
+        }
+        div {
+            font-size: 14px;
+        }
+        .app > div {
+            width: 100%;
+        }
+        .chat-item {
+            border: 1px solid #ccc;
+            background-color: #FFFAEB;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 5px 0;
+        }
+        .msg-sender {
+            font-weight: bold;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #ddd;
+        }
+        .msg-content {
+            padding: 6px 10px 0 10px;
+        }
+        #msgs, #files {
+            background-color: #fff;
+            border-radius:5px;
+            padding: 10px;
+        }
+        #files > div {
+            border: 1px solid #ddd;
+            margin: 5px;
+            padding: 5px;
+            background-color: #d2c6ff;
+            border-radius: 3px;
+        }
+        .terminal textarea {
+            background-color: #171717;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="app" style="height:100vh;display:flex;flex-direction:column;align-items:center;gap:10px;padding:10px 30px;">
+        <div>测试内容：</div>
+        <div>
+            <textarea id="content" rows="3" style="width:50%;">李白是哪个朝代的诗人？他的诗的风格是什么样的？</textarea>
+            <button id="send">Send</button>
+        </div>
+
+        <div>
+            <textarea id="output" style="width:100%;" rows="5" placeholder="指令输出"></textarea>
+        </div>
+
+        <div style="display:flex;flex:1;gap:10px;height:100%;overflow:hidden;min-height:0;">
+            <div id="msgs" style="height:100%;overflow:auto;flex:3;"></div>
+            <div id="files" style="height:100%;overflow:auto;flex:2"></div>
+        </div>
+    </div>
+
+    <script>
+        const msgs = document.getElementById('msgs');
+    function createMsg(data) {
+        data = JSON.parse(data);
+        cmd = data[0];
+        args = data[1];
+
+        if ('msg:create' == cmd) {
+            let div = document.getElementById('msg-'+ args.id);
+            if (div) {
+                return;
+            }
+            div = document.createElement('div');
+            div.id = `msg-${args.id}`;
+            div.className = 'chat-item';
+            div.innerHTML = `<div class="msg-sender">${args.role}(${args.id})</div><div class="msg-content"></div><ul class="msg-cmds"></ul>`;
+            msgs.appendChild(div);
+        }
+        else if ('msg:update' == cmd) {
+            const item = document.getElementById('msg-'+ (args.message_uuid || args.id));
+            if (item) {
+                const msgContent = args.content;
+                let out = '';
+                if (Array.isArray(msgContent)) {
+                    if (msgContent.length > 0) {
+                        for (var i = 0; i < msgContent.length; i++) {
+                            let cntItem = msgContent[i];
+                            if (cntItem.insert) {
+                                if (typeof cntItem.insert == 'string') {
+                                    out += cntItem.insert.replace('\n', '<br/>');
+                                }
+                                else if (cntItem.mentiontrigger) {
+                                    let mention = cntItem.mentiontrigger;
+                                    out += (mention.char + mention.value)
+                                }
+                            }
+                        }
+
+                        if (out) {
+                            const cnt = item.querySelector('.msg-content');
+                            if (args.is_finished) {
+                                cnt.innerHTML = out;
+                            } else {
+                                cnt.innerHTML += out;
+                            }
+                            msgs.scrollTop = msgs.scrollHeight;
+                        }
+                    }
+                }
+            }
+        }
+        else if ("action_data:update" == cmd) {
+            msg_uuid = args.message_uuid;
+            const item = document.getElementById('msg-'+ msg_uuid);
+            if (item) {
+                action_data = args.action_data;
+                action_cmd_name = action_data.command_name;
+                const ul = item.querySelector('.msg-cmds');
+                const li = document.createElement('li');
+                li.innerText = `${action_cmd_name}: ${JSON.stringify(action_data)}`
+                ul.appendChild(li);
+            }
+        }
+        else if ("timeline:start" === cmd) {
+            const block_type = args.block_type;
+            if ('Editor' == block_type) {
+               let src_path = args.src_path;
+               const div = document.createElement('div');
+               div.id = `file-${args.uuid}`;
+               div.innerHTML = `<div>${src_path}</div><textarea style="width:100%;" rows="10"></textarea>`;
+               document.getElementById('files').appendChild(div);
+               document.getElementById('files').scrollTop = document.getElementById('files').scrollHeight;
+            }
+            else if ("Terminal" == block_type) {
+                const div = document.createElement('div');
+               div.id = `term-${args.uuid}`;
+               div.className = 'terminal';
+               div.innerHTML = `<div>Terminal</div><textarea style="width:100%;" rows="5">${args.content}</textarea>`;
+               document.getElementById('files').appendChild(div);
+               document.getElementById('files').scrollTop = document.getElementById('files').scrollHeight;
+            }
+        }
+        else if ("timeline:content" === cmd) {
+            const block_type = args.block_type;
+            if ('Editor' == block_type) {
+               let fileId = args.uuid;
+               let fileDiv = document.getElementById(`file-${fileId}`);
+               if (fileDiv) {
+                  const fileArea = fileDiv.querySelector('textarea');
+                  fileArea.value += args.content;
+                  fileArea.scrollTop = fileArea.scrollHeight;
+               }
+            }
+            else if ("Terminal" == block_type) {
+               let termId = args.uuid;
+               let termDiv = document.getElementById(`term-${termId}`);
+               if (termDiv) {
+                  const termArea = termDiv.querySelector('textarea');
+                  termArea.value += args.content;
+                  termArea.scrollTop = termArea.scrollHeight;
+               }
+            }
+        }
+        else if ("timeline:complete" === cmd) {
+            const block_type = args.block_type;
+            if ('Editor' == block_type) {
+            }
+        }
+
+    }
+    </script>
+
+    <script>
+     const textarea = document.getElementById('content');
+     document.getElementById('send').onclick = function() {
+        const msg = textarea.value;
+        if (!msg.trim()) {
+            textarea.focus();
+            return;
+        }
+
+        fetch(`//${location.host}/api/v1/chats/{{clientId}}/messages`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                "content": [
+                    {
+                        "insert": {
+                            "mentiontrigger": {
+                                "char": "@",
+                                "id": "Data Analyst",
+                                "value": "David"
+                            }
+                        }
+                    },
+                    {"insert": " "},
+                    {
+                        "insert": {
+                            "mentiontrigger": {
+                                "char": "@",
+                                "id": "Product Manager",
+                                "value": "Emma"
+                            }
+                        }
+                    },
+                    {
+                        "insert": msg
+                    }
+                ],
+                "type": "message",
+                "metadata": {
+                    "agent_mode": "full",
+                    "default_model": "claude-4-sonnet",
+                }
+            })
+        })
+        .then(resp => resp.json())
+        .then(data => console.log('>> 发送响应：', data));
+     };
+    </script>
+
+    <script>
+        const ws = new WebSocket(`ws://${location.host}/ws/{{clientId}}`);
+        ws.onopen = () => {
+            console.log("Connected");
+            ws.send("2");
+        };
+        ws.onmessage = (event) => {
+            let data = event.data;
+            // 忽略心跳消息
+            if ('3' === data) {
+                return;
+            }
+            console.log(data);
+            try {
+            document.getElementById('output').value += (data + '\n');
+            document.getElementById('output').scrollTop = document.getElementById('output').scrollHeight;
+             createMsg(data);
+             } catch (e) {
+                console.error(e);
+             }
+        };
+
+        // 主动心跳检测
+        setInterval(function() {
+            ws.send("2");
+        }, 5000);
+    </script>
+</body>
+</html>
