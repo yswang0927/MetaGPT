@@ -177,7 +177,6 @@ class ResourceReporter(BaseModel):
         data["value"] = value
         data["name"] = name
 
-        #role = CURRENT_ROLE.get(None)
         if self.role is not None:
             # yswang modify
             data["role"] = self.role.profile

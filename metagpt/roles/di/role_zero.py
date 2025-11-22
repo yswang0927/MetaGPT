@@ -50,9 +50,6 @@ from metagpt.utils.role_zero_utils import (
     parse_images,
 )
 
-# yswang add
-from metagpt.chat.communication import CURRENT_ROLE
-
 @register_tool(include_functions=["ask_human", "reply_to_human"])
 class RoleZero(Role):
     """A role who can think and act dynamically"""
@@ -214,7 +211,6 @@ class RoleZero(Role):
 
     async def _think(self) -> bool:
         """Useful in 'react' mode. Use LLM to decide whether and what to do next."""
-        CURRENT_ROLE.set(self)
 
         # Compatibility
         if self.use_fixed_sop:
@@ -305,9 +301,6 @@ class RoleZero(Role):
         return super()._get_prefix() + f" The current time is {time_info}."
 
     async def _act(self) -> Message:
-        # yswang add
-        CURRENT_ROLE.set(self)
-
         if self.use_fixed_sop:
             return await super()._act()
 
@@ -334,9 +327,11 @@ class RoleZero(Role):
     async def _react(self) -> Message:
         # NOTE: Diff 1: Each time landing here means news is observed, set todo to allow news processing in _think
         self._set_state(0)
+
         # yswang add
-        CURRENT_ROLE.set(self)
         with ChatEventReporter(role=self, chat_id=self.context.get_chat_id()) as reporter:
+            reporter.set_chat_id(self.context.get_chat_id())
+            reporter.set_role(self)
             reporter.report_role_event(self.profile, event="thinking")
 
         # problems solvable by quick thinking doesn't need to a formal think-act cycle

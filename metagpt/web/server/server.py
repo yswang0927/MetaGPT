@@ -11,7 +11,7 @@ from datetime import datetime
 
 from metagpt import software_company
 from models import ResponseBody, ChatMessage
-from metagpt.chat.communication import CURRENT_CHAT_ID, CLIENT_WEBSOCKETS, CLIENT_MSG_QUEUE,format_output_message
+from metagpt.chat.communication import CLIENT_WEBSOCKETS, CLIENT_MSG_QUEUE, format_output_message
 from metagpt.const import DEFAULT_WORKSPACE_ROOT
 from metagpt.logs import logger
 
