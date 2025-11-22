@@ -158,8 +158,10 @@ class Environment(ExtEnv):
         Add a role in the current environment
         """
         self.roles[role.name] = role
-        role.set_env(self)
         role.context = self.context
+        role.set_env(self)
+        # yswang add
+        role.after_properties_set()
 
     def add_roles(self, roles: Iterable[BaseRole]):
         """增加一批在当前环境的角色
@@ -171,6 +173,9 @@ class Environment(ExtEnv):
         for role in roles:  # setup system message with roles
             role.context = self.context
             role.set_env(self)
+            # yswang add
+            role.after_properties_set()
+
 
     def publish_message(self, message: Message, peekable: bool = True) -> bool:
         """

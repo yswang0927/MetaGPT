@@ -105,12 +105,16 @@ class RoleZero(Role):
     msg_uuid: str = ""
 
     # yswang add
-    def model_post_init(self, context: Any, /) -> None:
+    def after_properties_set(self):
+        super().after_properties_set()
+
         self.editor.set_chat_id(self.context.get_chat_id())
         self.editor.set_role(self)
         self.browser.set_chat_id(self.context.get_chat_id())
         self.browser.set_role(self)
-        print(f"%%%%%%%%%%%%%%%%%%% {self._setting} model_post_init %%%%%%%%%%%%%%%")
+        if self.planner:
+            self.planner.set_chat_id(self.context.get_chat_id())
+            self.planner.set_role(self)
 
 
     @model_validator(mode="after")
@@ -122,11 +126,10 @@ class RoleZero(Role):
         self._set_react_mode(react_mode=self.react_mode, max_react_loop=self.max_react_loop)
         if self.tools and not self.tool_recommender:
             self.tool_recommender = BM25ToolRecommender(tools=self.tools, force=True)
-        self.set_actions([RunCommand])
 
+        self.set_actions([RunCommand])
         # HACK: Init Planner, control it through dynamic thinking; Consider formalizing as a react mode
         self.planner = Planner(goal="", working_memory=self.rc.working_memory, auto_run=True)
-
         return self
 
     @model_validator(mode="after")

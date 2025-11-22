@@ -52,7 +52,8 @@ class Architect(RoleZero):
         self._watch({WritePRD})
 
     # yswang add
-    def model_post_init(self, __context):
+    def after_properties_set(self):
+        super().after_properties_set()
         self.terminal.set_chat_id(self.context.get_chat_id())
         self.terminal.set_role(self)
 

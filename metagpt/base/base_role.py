@@ -34,3 +34,11 @@ class BaseRole(BaseSerialization):
     @abstractmethod
     def get_memories(self, k: int = 0) -> list["Message"]:
         """Return the most recent k memories of this role."""
+
+    # yswang add
+    def after_properties_set(self):
+        """
+        子类负责实现, 用于在Role的各种属性设置完毕后调用。
+        主要用于 `Environment.add_roles()` 下role设置context和env之后的调用;
+        子类可以重载这个方法用于设置 `chat_id`等
+        """

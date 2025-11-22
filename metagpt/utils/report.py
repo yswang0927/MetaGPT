@@ -19,7 +19,6 @@ except ImportError:
 
 # yswang add
 from metagpt.chat.communication import (
-    CURRENT_CHAT_ID,
     CLIENT_MSG_QUEUE,
     StreamingRemoveCodeBlockFilter
 )
@@ -54,7 +53,7 @@ class ResourceReporter(BaseModel):
     callback_url: str = Field(METAGPT_REPORTER_DEFAULT_URL, description="The URL to which the report should be sent")
     _llm_task: Optional[asyncio.Task] = PrivateAttr(None)
     # yswang add
-    chat_id: str = Field("", description="The chat_id that is reporting the resource")
+    chat_id: str = Field("", description="The chat_id that is reporting the resource", exclude=True)
     # role 不能参与主动序列化，否则会引起循环依赖，因为在 Role会使用 Reporter
     role: Any = Field(None, description="The role that is reporting the resource", exclude=True)
     _value_type: str = PrivateAttr("") # 增加 _value_type 用于记录首次发送的 value: {type:'xxx'}
@@ -121,13 +120,10 @@ class ResourceReporter(BaseModel):
 
     def _report(self, value: Any, name: str, extra: Optional[dict] = None):
         data = self._format_data(value, name, extra)
-        #if self.block != BlockType.THOUGHT:
-        #print(f">>>> {self.block} _report >> {data}")
+        print(f">> {self.block} _report >> {data}")
 
         # yswang add 向消息队列推送消息，便于显示在界面上
-        client_id = CURRENT_CHAT_ID.get(None)
-        if client_id and data:
-            CLIENT_MSG_QUEUE.put_nowait((client_id, data))
+        CLIENT_MSG_QUEUE.put_nowait((self.chat_id, data))
 
         """
         if not self.callback_url:
@@ -139,13 +135,10 @@ class ResourceReporter(BaseModel):
 
     async def _async_report(self, value: Any, name: str, extra: Optional[dict] = None):
         data = self._format_data(value, name, extra)
-        #if self.block != BlockType.THOUGHT:
-        #print(f">>>> {self.block} _async_report>>> {data}")
+        print(f">> {self.block} _async_report>>> {data}")
 
         # yswang add 向消息队列推送消息，便于显示在界面上
-        client_id = CURRENT_CHAT_ID.get(None)
-        if client_id and data:
-            CLIENT_MSG_QUEUE.put_nowait((client_id, data))
+        CLIENT_MSG_QUEUE.put_nowait((self.chat_id, data))
 
         """
         if not self.callback_url:
@@ -169,13 +162,14 @@ class ResourceReporter(BaseModel):
     def _format_data(self, value, name, extra):
         self._content_index += 1
         data = self.model_dump(mode="json", exclude=("callback_url", "llm_stream", "enable_llm_stream", "role"))
+
         if isinstance(value, BaseModel):
             value = value.model_dump(mode="json")
         elif isinstance(value, Path):
             value = str(value)
 
         # yswang add 读取 type 值
-        if isinstance(value, dict) and "type" in value:
+        if isinstance(value, dict) and ("type" in value):
             self._value_type = value.get("type", None)
 
         if name == "path":
@@ -186,7 +180,6 @@ class ResourceReporter(BaseModel):
         #role = CURRENT_ROLE.get(None)
         if self.role is not None:
             # yswang modify
-            #role_name = role.profile #role._setting
             data["role"] = self.role.profile
             data["role_name"] = self.role.name
         else:

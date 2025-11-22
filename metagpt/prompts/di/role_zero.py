@@ -265,3 +265,22 @@ The requirement is:
 Which Natural Language must you respond in?
 Output only the language type.
 """
+
+
+# yswang add 用于将用户的第一个消息进行总结成简短的一句话，适用于界面标题展示
+TOPIC_TITLE_SUMMARY_PROMPT = """
+Please extract a concise title from the user's first input for UI display.
+Requirements:
+1. Title length should be 2-20 characters
+2. Highlight core keywords
+3. Suitable for conversation title display
+4. Include main technology names for technical questions
+5. Avoid redundant words like "please", "help", etc.
+
+Examples:
+- User input: "Please help me write a Java sorting algorithm" → Title: "Java Sorting"
+- User input: "How to set up Spring Boot project" → Title: "Spring Boot Setup"
+- User input: "Python crawler anti-crawling issues" → Title: "Python Anti-Crawl"
+
+Output the title directly without quotes or other formatting.
+"""

@@ -55,7 +55,8 @@ class Engineer2(RoleZero):
     max_react_loop: int = 40
 
     # yswang add
-    def model_post_init(self, __context):
+    def after_properties_set(self):
+        super().after_properties_set()
         self.terminal.set_chat_id(self.context.get_chat_id())
         self.terminal.set_role(self)
 

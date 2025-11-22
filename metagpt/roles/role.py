@@ -48,8 +48,6 @@ from metagpt.strategy.planner import Planner
 from metagpt.utils.common import any_to_name, any_to_str, role_raise_decorator
 from metagpt.utils.repair_llm_raw_output import extract_state_value_from_output
 
-# yswang add
-from metagpt.chat.communication import CURRENT_ROLE
 
 PREFIX_TEMPLATE = """You are a {profile}, named {name}, your goal is {goal}. """
 CONSTRAINT_TEMPLATE = "the constraint is {constraints}. "
@@ -234,9 +232,6 @@ class Role(BaseRole, SerializationMixin, ContextMixin, BaseModel):
         override = not action.private_config
         action.set_llm(self.llm, override=override)
         action.set_prefix(self._get_prefix())
-        # yswang add
-        action.set_role(self)
-        action.set_chat_id(self.context.get_chat_id())
 
     def set_action(self, action: Action):
         """Add action to the role."""
@@ -345,8 +340,6 @@ class Role(BaseRole, SerializationMixin, ContextMixin, BaseModel):
 
     async def _think(self) -> bool:
         """Consider what to do and decide on the next course of action. Return false if nothing can be done."""
-        # yswang add
-        CURRENT_ROLE.set(self)
         if len(self.actions) == 1:
             # If there is only one action, then only this one can be performed
             self._set_state(0)
@@ -387,8 +380,6 @@ class Role(BaseRole, SerializationMixin, ContextMixin, BaseModel):
         return True
 
     async def _act(self) -> Message:
-        # yswang add
-        CURRENT_ROLE.set(self)
         logger.info(f"{self._setting}: to do {self.rc.todo}({self.rc.todo.name})")
         response = await self.rc.todo.run(self.rc.history)
         if isinstance(response, (ActionOutput, ActionNode)):
@@ -466,8 +457,6 @@ class Role(BaseRole, SerializationMixin, ContextMixin, BaseModel):
         This is the standard think-act loop in the ReAct paper, which alternates thinking and acting in task solving, i.e. _think -> _act -> _think -> _act -> ...
         Use llm to select actions in _think dynamically
         """
-        # yswang add
-        CURRENT_ROLE.set(self)
         actions_taken = 0
         rsp = AIMessage(content="No actions taken yet", cause_by=Action)  # will be overwritten after Role _act
         while actions_taken < self.rc.max_react_loop:
@@ -523,8 +512,6 @@ class Role(BaseRole, SerializationMixin, ContextMixin, BaseModel):
 
     async def react(self) -> Message:
         """Entry to one of three strategies by which Role reacts to the observed Message"""
-        # yswang add
-        CURRENT_ROLE.set(self)
         if self.rc.react_mode == RoleReactMode.REACT or self.rc.react_mode == RoleReactMode.BY_ORDER:
             rsp = await self._react()
         elif self.rc.react_mode == RoleReactMode.PLAN_AND_ACT:
@@ -577,8 +564,6 @@ class Role(BaseRole, SerializationMixin, ContextMixin, BaseModel):
         Export SDK API, used by AgentStore RPC.
         The exported `think` function
         """
-        # yswang add
-        CURRENT_ROLE.set(self)
         await self._observe()  # For compatibility with the old version of the Agent.
         await self._think()
         return self.rc.todo
@@ -588,8 +573,6 @@ class Role(BaseRole, SerializationMixin, ContextMixin, BaseModel):
         Export SDK API, used by AgentStore RPC.
         The exported `act` function
         """
-        # yswang add
-        CURRENT_ROLE.set(self)
         msg = await self._act()
         return ActionOutput(content=msg.content, instruct_content=msg.instruct_content)
 
@@ -608,3 +591,15 @@ class Role(BaseRole, SerializationMixin, ContextMixin, BaseModel):
         if self.actions:
             return any_to_name(self.actions[0])
         return ""
+
+    # yswang add
+    def after_properties_set(self):
+        if self.planner:
+            self.planner.set_chat_id(self.context.get_chat_id())
+            self.planner.set_role(self)
+
+        if self.actions:
+            for action in self.actions:
+                action.set_context(self.context) # 使用实际的Context
+                action.set_chat_id(self.context.get_chat_id())
+                action.set_role(self)

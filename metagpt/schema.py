@@ -502,6 +502,10 @@ class Plan(BaseModel):
     task_map: dict[str, Task] = {}
     current_task_id: str = ""
 
+    # yswang add
+    chat_id: str = Field(default="", exclude=True)
+    role: Any = Field(default=None, exclude=True)
+
     def _topological_sort(self, tasks: list[Task]):
         task_map = {task.task_id: task for task in tasks}
         dependencies = {task.task_id: set(task.dependent_task_ids) for task in tasks}
@@ -648,7 +652,13 @@ class Plan(BaseModel):
                 current_task_id = task.task_id
                 break
         self.current_task_id = current_task_id
-        TaskReporter().report({"tasks": [i.model_dump() for i in self.tasks], "current_task_id": current_task_id})
+
+        # yswang modify
+        #TaskReporter().report({"tasks": [i.model_dump() for i in self.tasks], "current_task_id": current_task_id})
+        with TaskReporter() as reporter:
+            reporter.set_chat_id(self.chat_id)
+            reporter.set_role(self.role)
+            reporter.report({"tasks": [i.model_dump() for i in self.tasks], "current_task_id": current_task_id})
 
     @property
     def current_task(self) -> Task:
@@ -708,6 +718,13 @@ class Plan(BaseModel):
             assignee=new_assignee,
         )
         return self._replace_task(new_task)
+
+    # yswang add
+    def set_chat_id(self, chat_id: str):
+        self.chat_id = chat_id
+
+    def set_role(self, role: Any):
+        self.role = role
 
 
 class MessageQueue(BaseModel):

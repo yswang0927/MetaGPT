@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import List
+from typing import List, Any
 
 from pydantic import BaseModel, Field
 
@@ -62,6 +62,10 @@ class Planner(BaseModel):
     )  # memory for working on each task, discarded each time a task is done
     auto_run: bool = False
 
+    # yswang add
+    chat_id: str = Field(default="", exclude=True)
+    role: Any = Field(default=None, exclude=True)
+
     def __init__(self, goal: str = "", plan: Plan = None, **kwargs):
         plan = plan or Plan(goal=goal)
         super().__init__(plan=plan, **kwargs)
@@ -77,6 +81,9 @@ class Planner(BaseModel):
     async def update_plan(self, goal: str = "", max_tasks: int = 3, max_retries: int = 3):
         if goal:
             self.plan = Plan(goal=goal)
+            # yswang add
+            self.plan.set_chat_id(self.chat_id)
+            self.plan.set_role(self.role)
 
         plan_confirmed = False
         while not plan_confirmed:
@@ -190,3 +197,14 @@ class Planner(BaseModel):
         )
 
         return prompt
+
+    # yswang add
+    def set_chat_id(self, chat_id: str):
+        self.chat_id = chat_id
+        if self.plan is not None:
+            self.plan.set_chat_id(chat_id)
+
+    def set_role(self, role: Any):
+        self.role = role
+        if self.plan is not None:
+            self.plan.set_role(role)
