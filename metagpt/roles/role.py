@@ -593,6 +593,11 @@ class Role(BaseRole, SerializationMixin, ContextMixin, BaseModel):
         return ""
 
     # yswang add
+    @property
+    def chat_id(self):
+        return self.context.get_chat_id()
+
+    # yswang add
     def after_properties_set(self):
         if self.planner:
             self.planner.set_chat_id(self.context.get_chat_id())

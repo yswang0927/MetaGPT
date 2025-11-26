@@ -105,12 +105,12 @@ class RoleZero(Role):
     def after_properties_set(self):
         super().after_properties_set()
 
-        self.editor.set_chat_id(self.context.get_chat_id())
+        self.editor.set_chat_id(self.chat_id)
         self.editor.set_role(self)
-        self.browser.set_chat_id(self.context.get_chat_id())
+        self.browser.set_chat_id(self.chat_id)
         self.browser.set_role(self)
         if self.planner:
-            self.planner.set_chat_id(self.context.get_chat_id())
+            self.planner.set_chat_id(self.chat_id)
             self.planner.set_role(self)
 
 
@@ -266,7 +266,9 @@ class RoleZero(Role):
             instruction=instruction,
         )
 
-        async with ThoughtReporter(enable_llm_stream=True, role=self, chat_id=self.context.get_chat_id()) as reporter:
+        async with ThoughtReporter(enable_llm_stream=True, role=self, chat_id=self.chat_id) as reporter:
+            reporter.set_chat_id(self.chat_id)
+            reporter.set_role(self)
             # yswang add 保存下当前思考消息ID，用于后续CommandReporter使用：每个command中都包含所属message
             self.msg_uuid = reporter.get_uuid()
             await reporter.async_report({"type": "react"})
@@ -329,9 +331,7 @@ class RoleZero(Role):
         self._set_state(0)
 
         # yswang add
-        with ChatEventReporter(role=self, chat_id=self.context.get_chat_id()) as reporter:
-            reporter.set_chat_id(self.context.get_chat_id())
-            reporter.set_role(self)
+        with ChatEventReporter(role=self, chat_id=self.chat_id) as reporter:
             reporter.report_role_event(self.profile, event="thinking")
 
         # problems solvable by quick thinking doesn't need to a formal think-act cycle
@@ -386,7 +386,7 @@ class RoleZero(Role):
         # 调用LLM进行当前问题的意图识别: 是可以立刻直接答复 还是需要规划Task执行
         memory = self.get_memories(k=self.memory_k)
         context = self.llm.format_msg(memory + [UserMessage(content=QUICK_THINK_PROMPT)])
-        async with ThoughtReporter(role=self, chat_id=self.context.get_chat_id()) as reporter:
+        async with ThoughtReporter(role=self, chat_id=self.chat_id) as reporter:
             # yswang add
             self.msg_uuid = reporter.get_uuid()
             await reporter.async_report({"type": "classify"})
@@ -394,7 +394,7 @@ class RoleZero(Role):
 
         # QUICK/AMBIGUOUS → 直接用 LLM 快速回答
         if "QUICK" in intent_result or "AMBIGUOUS" in intent_result:  # llm call with the original context
-            async with ThoughtReporter(enable_llm_stream=True, role=self, chat_id=self.context.get_chat_id()) as reporter:
+            async with ThoughtReporter(enable_llm_stream=True, role=self, chat_id=self.chat_id) as reporter:
                 # yswang add
                 self.msg_uuid = reporter.get_uuid()
                 await reporter.async_report({"type": "quick"})
@@ -414,7 +414,10 @@ class RoleZero(Role):
         # 调用搜索增强问答
         elif "SEARCH" in intent_result:
             query = "\n".join(str(msg) for msg in memory)
-            answer = await SearchEnhancedQA().run(query)
+            searchQa = SearchEnhancedQA()
+            searchQa.set_chat_id(self.chat_id)
+            searchQa.set_role(self)
+            answer = await searchQa.run(query)
 
         if answer:
             self.rc.memory.add(AIMessage(content=answer, cause_by=QUICK_THINK_TAG))
@@ -431,7 +434,7 @@ class RoleZero(Role):
         outputs = []
         # yswang add 使用自定义 CommandReporter 报送命令执行信息
         output_message_cmds = ["TeamLeader.publish_message", "RoleZero.reply_to_human"]
-        with CommandReporter(message_uuid=self.msg_uuid, role=self, chat_id=self.context.get_chat_id()) as reporter:
+        with CommandReporter(message_uuid=self.msg_uuid, role=self, chat_id=self.chat_id) as reporter:
             # yswang add
             reporter.report({"type": "command"}, name="object")
             for cmd in commands:
@@ -440,7 +443,7 @@ class RoleZero(Role):
                 # 这两个特殊的命令，需要作为普通消息报送
                 is_output_msg = cmd["command_name"] in output_message_cmds
                 if is_output_msg:
-                    with ThoughtReporter(role=self, chat_id=self.context.get_chat_id()) as reporter2:
+                    with ThoughtReporter(role=self, chat_id=self.chat_id) as reporter2:
                         # yswang add
                         reporter2.report({"type":"quick"})
                         reporter2.report(cmd["args"], name="content")
@@ -552,7 +555,7 @@ class RoleZero(Role):
         if not any(["reply_to_human" in memory.content for memory in self.get_memories(k=5)]):
             logger.debug("manually reply to human")
             reply_to_human_prompt = REPORT_TO_HUMAN_PROMPT.format(respond_language=self.respond_language)
-            async with ThoughtReporter(enable_llm_stream=True, role=self, chat_id=self.context.get_chat_id()) as reporter:
+            async with ThoughtReporter(enable_llm_stream=True, role=self, chat_id=self.chat_id) as reporter:
                 # yswang add
                 self.msg_uuid = reporter.get_uuid()
                 await reporter.async_report({"type": "quick"})

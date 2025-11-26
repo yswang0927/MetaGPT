@@ -163,6 +163,11 @@ class Engineer2(RoleZero):
             if not default_dir.exists():
                 raise ValueError("dist_dir must be an absolute path.")
             dist_dir = default_dir
+
+        # yswang add
+        self.deployer.set_role(self)
+        self.deployer.set_chat_id(self.chat_id)
+
         return await self.deployer.deploy_to_public(dist_dir)
 
     async def _eval_terminal_run(self, cmd):

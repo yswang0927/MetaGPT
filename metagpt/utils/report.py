@@ -52,10 +52,12 @@ class ResourceReporter(BaseModel):
     enable_llm_stream: bool = Field(False, description="Indicates whether to connect to an LLM stream for reporting")
     callback_url: str = Field(METAGPT_REPORTER_DEFAULT_URL, description="The URL to which the report should be sent")
     _llm_task: Optional[asyncio.Task] = PrivateAttr(None)
+
     # yswang add
     chat_id: str = Field("", description="The chat_id that is reporting the resource", exclude=True)
     # role 不能参与主动序列化，否则会引起循环依赖，因为在 Role会使用 Reporter
     role: Any = Field(None, description="The role that is reporting the resource", exclude=True)
+
     _value_type: str = PrivateAttr("") # 增加 _value_type 用于记录首次发送的 value: {type:'xxx'}
     _content_index: int = PrivateAttr(0)
 

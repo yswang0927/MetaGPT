@@ -16,6 +16,7 @@ class WebPage(BaseModel):
 
     _soup: Optional[BeautifulSoup] = PrivateAttr(default=None)
     _title: Optional[str] = PrivateAttr(default=None)
+    _icon: Optional[str] = PrivateAttr(default=None)
 
     @property
     def soup(self) -> BeautifulSoup:
@@ -29,6 +30,34 @@ class WebPage(BaseModel):
             title_tag = self.soup.find("title")
             self._title = title_tag.text.strip() if title_tag is not None else ""
         return self._title
+
+    @property
+    def icon(self):
+        if self._icon is None:
+            parsed_url = urlparse(self.url)
+            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+            rels = [
+                "icon",
+                "shortcut icon",
+                "apple-touch-icon",
+                "apple-touch-icon-precomposed"
+            ]
+            for rel in rels:
+                icon_tag = self.soup.find(f"link[rel=\"{rel}\"]")
+                if icon_tag is not None:
+                    icon_href = icon_tag["href"]
+                    if icon_href:
+                        if icon_href.startswith("http://") or icon_href.startswith("https://"):
+                            self._icon = icon_href
+                        else:
+                            self._icon = urljoin(base_url, icon_href)
+                        break
+
+            if self._icon is None:
+                self._icon = urljoin(base_url, "favicon.ico")
+
+        return self._icon
+
 
     def get_links(self) -> Generator[str, None, None]:
         for i in self.soup.find_all("a", href=True):
