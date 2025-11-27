@@ -10,8 +10,6 @@ from typing import Any, Union, Iterable
 from datetime import datetime
 from uuid import uuid4
 
-from metagpt.utils.report import BlockType, END_MARKER_NAME
-
 # 消息队列，接收 `report.py` 推送的消息，被 websocket 进行消费
 # 数据格式：(client_id, msg)
 CLIENT_MSG_QUEUE = Queue()
@@ -61,31 +59,31 @@ def format_output_message(report_msg):
         return None
 
     # 转换 block=Event
-    if BlockType.EVENT == block:
+    if "Event" == block:
         return format_block_event(report_msg)
 
     # 转换 block=Thought
-    if BlockType.THOUGHT == block:
+    if "Thought" == block:
         return format_block_thought(report_msg)
 
     # 转换 block=Command
-    if BlockType.COMMAND == block:
+    if "Command" == block:
         return format_block_command(report_msg)
 
     # 转换 block=Task
-    if BlockType.TASK == block:
+    if "Task" == block:
         return format_block_task(report_msg)
 
     # 转换 block=Editor
-    if BlockType.EDITOR == block:
+    if "Editor" == block:
         return format_block_editor(report_msg)
 
     # 转换 block=Terminal
-    if BlockType.TERMINAL == block:
+    if "Terminal" == block:
         return format_block_terminal(report_msg)
 
     # 转换 block=Browser-RT
-    if BlockType.BROWSER_RT == block:
+    if "Browser-RT" == block:
         return format_browser_rt(report_msg)
 
     return report_msg
@@ -94,7 +92,7 @@ def format_output_message(report_msg):
 # 处理 block=Event 消息格式
 def format_block_event(report_msg):
     (block, uuid, name, value, value_type, role, chat_id, content_index) = extract_block_data(report_msg)
-    if END_MARKER_NAME == name:
+    if "end_marker" == name:
         return None
 
     msg = {
@@ -160,7 +158,7 @@ def format_block_thought(report_msg):
         return ("msg:update", msg)
 
     # finished
-    if END_MARKER_NAME == name:
+    if "end_marker" == name:
         # msg:update is_finished=True 格式
         msg = {
             "chat_id": chat_id,
@@ -384,7 +382,7 @@ def format_block_command(report_msg):
         msg["action_data"] = action_data
         return ("action_data:update", msg)
 
-    if END_MARKER_NAME == name:
+    if "end_marker" == name:
         return None
 
     return None
@@ -456,7 +454,7 @@ def format_block_editor(report_msg):
         return ("timeline:content", msg)
 
     # 文件内容输出结束
-    if END_MARKER_NAME == name and "code" == value_type:
+    if "end_marker" == name and "code" == value_type:
         """
         {'block': 'Editor', 'uuid': 'a13e80145546', 'value': None, 'name': 'end_marker', 'role': 'Engineer', 'chat_id': 'c001', 'type': 'code'}
         -->
@@ -500,7 +498,7 @@ def format_block_terminal(report_msg):
         """这是命令的输出内容"""
         msg["content"] = value
         return ("timeline:content", msg)
-    elif END_MARKER_NAME == name:
+    elif "end_marker" == name:
         """命令执行结束"""
         return ("timeline:complete", msg)
     return None
@@ -513,7 +511,7 @@ def format_browser_search(report_msg):
         "chat_id": chat_id,
         "message_uuid": uuid,
         "uuid": uuid,
-        "block_type": BlockType.BROWSER,
+        "block_type": "browser",
         "role": role,
         "type": "search"
     }
@@ -544,7 +542,7 @@ def format_browser_search(report_msg):
         msg["is_finished"] = False
         return ("msg:update", msg)
 
-    if END_MARKER_NAME == name:
+    if "end_marker" == name:
         msg["is_finished"] = True
         return ("msg:update", msg)
 
@@ -560,7 +558,7 @@ def format_browser_rt(report_msg):
         "chat_id": chat_id,
         "message_uuid": uuid,
         "uuid": uuid,
-        "block_type": BlockType.BROWSER_RT,
+        "block_type": "Browser-RT",
         "role": role,
         "content": {"url": value}
     }

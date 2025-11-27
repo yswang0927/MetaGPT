@@ -130,7 +130,7 @@ class Team(BaseModel):
     async def run(self, n_round: int = 3, idea: str = "", send_to: Union[str, Iterable[str]] = "", auto_archive: bool = True):
         """Run company until target round or no money"""
         # yswang add
-        ChatEventReporter().report_sleeping()
+        ChatEventReporter().report_sleeping(state=0, status="running")
 
         if idea:
             self.run_project(idea=idea, send_to=send_to)
@@ -139,7 +139,7 @@ class Team(BaseModel):
             if self.env.is_idle:
                 logger.debug("All roles are idle.")
                 # yswang add
-                ChatEventReporter().report_sleeping(state=0)
+                ChatEventReporter().report_sleeping(state=1)
                 break
             n_round -= 1
             self._check_balance()

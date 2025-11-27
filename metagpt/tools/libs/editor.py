@@ -1099,6 +1099,9 @@ class Editor(BaseModel):
             path = Path(path)
         if not path.is_absolute():
             path = self.working_dir / path
+        # yswang add
+        if not str(path).startswith(self.working_dir):
+            path = self.working_dir / path
         return path
 
     @staticmethod

@@ -36,6 +36,7 @@ class Terminal:
         # yswang add
         self.chat_id = ""
         self.role = None
+        self.working_dir = None
 
     async def _start_process(self):
         # Start a persistent shell process
@@ -84,6 +85,10 @@ class Terminal:
                     output += f"Failed to execut {command}. {reason}\n"
                     commands[index] = "true"
         cmd = " && ".join(commands)
+
+        # yswang add
+        if self.working_dir:
+            cmd = f"cd {self.working_dir} && {cmd}"
 
         # Send the command
         self.process.stdin.write((cmd + self.command_terminator).encode())
@@ -184,6 +189,9 @@ class Terminal:
     def set_role(self, role):
         self.role = role
         self.observer.set_role(role)
+
+    def set_working_dir(self, working_dir: str):
+        self.working_dir = working_dir
 
 
 

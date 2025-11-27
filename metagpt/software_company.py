@@ -106,6 +106,7 @@ async def generate_repo2(
     ctx = Context(config=config)
     # yswang add
     ctx.set_chat_id(chat_id)
+    ctx.set_working_dir(project_path)
 
     if not recover_path:
         company = Team(context=ctx)

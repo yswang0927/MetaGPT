@@ -105,7 +105,7 @@ async def post_chat(chat_id: str, chatMessage: ChatMessage):
     :return:
     """
 
-    project_path = os.path.join(DEFAULT_WORKSPACE_ROOT, "yswang", "chats")
+    project_path = os.path.join(DEFAULT_WORKSPACE_ROOT, "yswang", "chats", chat_id)
     if not os.path.exists(project_path):
         os.makedirs(project_path, exist_ok=True)
 

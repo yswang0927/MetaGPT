@@ -202,7 +202,7 @@ class BaseLLM(ABC):
 
         # the image data is replaced with placeholders to avoid long output
         masked_message = [self.mask_base64_data(m) for m in message]
-        logger.debug(masked_message)
+        #logger.debug(masked_message)
 
         compressed_message = self.compress_messages(message, compress_type=self.config.compress_type)
         rsp = await self.acompletion_text(compressed_message, stream=stream, timeout=self.get_timeout(timeout))

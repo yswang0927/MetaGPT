@@ -59,6 +59,7 @@ class Engineer2(RoleZero):
         super().after_properties_set()
         self.terminal.set_chat_id(self.context.get_chat_id())
         self.terminal.set_role(self)
+        self.terminal.set_working_dir(self.context.working_dir)
 
 
     async def _think(self) -> bool:
@@ -71,11 +72,20 @@ class Engineer2(RoleZero):
         Display the current terminal and editor state.
         This information will be dynamically added to the command prompt.
         """
-        current_directory = (await self.terminal.run_command("pwd")).strip()
+        #current_directory = (await self.terminal.run_command("pwd")).strip()
+        # yswang changed
+        current_directory = self.context.working_dir
         self.editor._set_workdir(current_directory)
+        current_edit_file = self.editor.current_file
+        if current_edit_file:
+            if isinstance(current_edit_file, Path):
+                current_edit_file = str(current_edit_file)
+            if current_edit_file.startswith(current_directory):
+                current_edit_file = current_edit_file[len(current_directory):]
+
         state = {
-            "editor_open_file": self.editor.current_file,
             "current_directory": current_directory,
+            "editor_open_file": current_edit_file,
         }
         self.cmd_prompt_current_state = CURRENT_STATE.format(**state).strip()
 

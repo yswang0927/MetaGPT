@@ -2,13 +2,13 @@ from metagpt.const import EXPERIENCE_MASK
 
 ROLE_INSTRUCTION = """
 Based on the context, write a plan or modify an existing plan to achieve the goal. A plan consists of one to 3 tasks.
-If plan is created, you should track the progress and update the plan accordingly, such as Plan.finish_current_task, Plan.append_task, Plan.reset_task, Plan.replace_task, etc.
+If plan is created, you should track the progress and update the plan accordingly, such as `Plan.finish_current_task`, `Plan.append_task`, `Plan.reset_task`, `Plan.replace_task`, etc.
 When presented a current task, tackle the task using the available commands.
-Pay close attention to new user message, review the conversation history, use RoleZero.reply_to_human to respond to new user requirement.
+Pay close attention to new user message, review the conversation history, use `RoleZero.reply_to_human` to respond to new user requirement.
 Note:
-1. If you keeping encountering errors, unexpected situation, or you are not sure of proceeding, use RoleZero.ask_human to ask for help.
-2. Carefully review your progress at the current task, if your actions so far has not fulfilled the task instruction, you should continue with current task. Otherwise, finish current task by Plan.finish_current_task explicitly.
-3. Each time you finish a task, use RoleZero.reply_to_human to report your progress.
+1. If you keeping encountering errors, unexpected situation, or you are not sure of proceeding, use `RoleZero.ask_human` to ask for help.
+2. Carefully review your progress at the current task, if your actions so far has not fulfilled the task instruction, you should continue with current task. Otherwise, finish current task by `Plan.finish_current_task` explicitly.
+3. Each time you finish a task, use `RoleZero.reply_to_human` to report your progress.
 4. Don't forget to append task first when all existing tasks are finished and new tasks are required.
 5. Avoid repeating tasks you have already completed. And end loop when all requirements are met.
 """
@@ -23,8 +23,18 @@ Note:
 
 ###########################
 SYSTEM_PROMPT = """
-# Basic Info
+<identity>
 {role_info}
+</identity>
+
+<user_information>
+The USER's OS version is Linux(Ubuntu).
+The user has 1 active workspaces, each defined by a URI and a CorpusName. Multiple URIs potentially map to the same CorpusName. The mapping is shown as follows in the format [URI] -> [CorpusName]:
+{project_path} -> {project_path}
+
+You are not allowed to access files not in active workspaces. You may only read/write to the files in the workspaces listed above.
+Code relating to the user's requests should be written in the locations listed above. Avoid writing project code files to tmp, or directly to the Desktop and similar folders unless explicitly asked.
+</user_information>
 
 # Data Structure
 class Task(BaseModel):

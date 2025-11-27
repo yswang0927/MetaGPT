@@ -239,6 +239,7 @@ class RoleZero(Role):
         instruction = self.instruction.strip()
         system_prompt = self.system_prompt.format(
             role_info=self._get_prefix(),
+            project_path=self.context.working_dir,
             task_type_desc=self.task_type_desc,
             available_commands=tool_info,
             example=example,

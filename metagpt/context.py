@@ -69,7 +69,7 @@ class Context(BaseModel):
     # yswang add
     chat_id: str = ""
     # 当前对话的文件工作目录，例如：/home/{user}/data/chats/{chat_id}/workspace
-    working_dir: Path = None
+    working_dir: str = ""
 
     def new_environ(self):
         """Return a new os.environ object"""
@@ -136,3 +136,6 @@ class Context(BaseModel):
 
     def get_chat_id(self) -> str:
         return self.chat_id
+
+    def set_working_dir(self, working_dir: str):
+        self.working_dir = working_dir

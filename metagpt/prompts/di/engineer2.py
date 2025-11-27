@@ -65,8 +65,8 @@ Note:
 )
 CURRENT_STATE = """
 The current editor state is:
-(Current directory: {current_directory})
-(Open file: {editor_open_file})
+Current directory: {current_directory}
+Open file: {editor_open_file}
 """
 ENGINEER2_INSTRUCTION = ROLE_INSTRUCTION + EXTRA_INSTRUCTION.strip()
 

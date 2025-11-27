@@ -56,6 +56,7 @@ class Architect(RoleZero):
         super().after_properties_set()
         self.terminal.set_chat_id(self.context.get_chat_id())
         self.terminal.set_role(self)
+        self.terminal.set_working_dir(self.context.working_dir)
 
     def _retrieve_experience(self) -> str:
         return ARCHITECT_EXAMPLE
