@@ -106,7 +106,7 @@ class Editor(BaseModel):
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    resource: EditorReporter = EditorReporter()
+    reporter: EditorReporter = EditorReporter()
     current_file: Optional[Path] = None
     current_line: int = 1
     window: int = 200
@@ -127,7 +127,7 @@ class Editor(BaseModel):
             os.makedirs(directory)
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
-        # self.resource.report(path, "path")
+        # self.reporter.report(path, "path")
         return f"The writing/coding the of the file {os.path.basename(path)}' is now completed. The file '{os.path.basename(path)}' has been successfully created."
 
     async def read(self, path: str) -> FileBlock:
@@ -147,7 +147,7 @@ class Editor(BaseModel):
             return FileBlock(file_path=str(path), block_content="")
         if self.is_large_file(content=content):
             return error
-        self.resource.report(str(path), "path")
+        self.reporter.report(str(path), "path")
 
         lines = content.splitlines(keepends=True)
         lines_with_num = [f"{i + 1:03}|{line}" for i, line in enumerate(lines)]
@@ -310,7 +310,7 @@ class Editor(BaseModel):
 
         output = self._cur_file_header(path, total_lines)
         output += self._print_window(path, self.current_line, self._clamp(context_lines, 1, 2000))
-        self.resource.report(path, "path")
+        self.reporter.report(path, "path")
         return output
 
     def goto_line(self, line_number: int) -> str:
@@ -818,7 +818,7 @@ class Editor(BaseModel):
             content=new_content,
         )
         # TODO: automatically tries to fix linter error (maybe involve some static analysis tools on the location near the edit to figure out indentation)
-        self.resource.report(file_name, "path")
+        self.reporter.report(file_name, "path")
         return ret_str
 
     def _edit_file_by_replace(self, file_name: str, to_replace: str, new_content: str) -> str:
@@ -922,7 +922,7 @@ class Editor(BaseModel):
         )
         # lint_error = bool(LINTER_ERROR_MSG in ret_str)
         # TODO: automatically tries to fix linter error (maybe involve some static analysis tools on the location near the edit to figure out indentation)
-        self.resource.report(file_name, "path")
+        self.reporter.report(file_name, "path")
         return ret_str
 
     def insert_content_at_line(self, file_name: str, line_number: int, insert_content: str) -> str:
@@ -969,7 +969,7 @@ class Editor(BaseModel):
             is_insert=True,
             is_append=False,
         )
-        self.resource.report(file_name, "path")
+        self.reporter.report(file_name, "path")
         return ret_str
 
     def append_file(self, file_name: str, content: str) -> str:
@@ -992,7 +992,7 @@ class Editor(BaseModel):
             is_insert=False,
             is_append=True,
         )
-        self.resource.report(file_name, "path")
+        self.reporter.report(file_name, "path")
         return ret_str
 
     def search_dir(self, search_term: str, dir_path: str = "./") -> str:
@@ -1062,7 +1062,7 @@ class Editor(BaseModel):
             res_list.append(f'[No matches found for "{search_term}" in {file_path}]')
 
         extra = {"type": "search", "symbol": search_term, "lines": [i[0] - 1 for i in matches]} if matches else None
-        self.resource.report(file_path, "path", extra=extra)
+        self.reporter.report(file_path, "path", extra=extra)
         return "\n".join(res_list)
 
     def find_file(self, file_name: str, dir_path: str = "./") -> str:
@@ -1143,7 +1143,7 @@ class Editor(BaseModel):
 
     # yswang add
     def set_chat_id(self, chat_id: str):
-        self.resource.set_chat_id(chat_id)
+        self.reporter.set_chat_id(chat_id)
 
     def set_role(self, role):
-        self.resource.set_role(role)
+        self.reporter.set_role(role)
