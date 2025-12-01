@@ -32,6 +32,14 @@
         }
         .msg-content {
             padding: 6px 10px 0 10px;
+            word-break: break-word;
+            white-space: pre-wrap;
+            overflow: auto;
+        }
+        .think .msg-content {
+            font-size: 90%;
+            color: #666;
+            font-style: italic;
         }
         #msgs, #files {
             background-color: #fff;
@@ -50,6 +58,7 @@
             color: #fff;
         }
     </style>
+    <script src="/static/socket.io.min.js"></script>
 </head>
 <body>
     <div class="app" style="height:100vh;display:flex;flex-direction:column;align-items:center;gap:10px;padding:10px 30px;">
@@ -70,24 +79,21 @@
     </div>
 
     <script>
-        const msgs = document.getElementById('msgs');
-    function createMsg(data) {
-        data = JSON.parse(data);
-        cmd = data[0];
-        args = data[1];
+    const msgs = document.getElementById('msgs');
 
-        if ('msg:create' == cmd) {
+    const msgs_parser = {
+        "msg:create": (args) => {
             let div = document.getElementById('msg-'+ args.id);
             if (div) {
                 return;
             }
             div = document.createElement('div');
             div.id = `msg-${args.id}`;
-            div.className = 'chat-item';
-            div.innerHTML = `<div class="msg-sender">${args.role}(${args.id})</div><div class="msg-content"></div><ul class="msg-cmds"></ul>`;
+            div.className = 'chat-item ' + args.type;
+            div.innerHTML = `<div class="msg-sender">${args.role}(${args.id})</div><pre class="msg-content"></pre><ul class="msg-cmds"></ul>`;
             msgs.appendChild(div);
-        }
-        else if ('msg:update' == cmd) {
+        },
+        "msg:update": (args) => {
             const item = document.getElementById('msg-'+ (args.message_uuid || args.id));
             if (item) {
                 const msgContent = args.content;
@@ -98,7 +104,8 @@
                             let cntItem = msgContent[i];
                             if (cntItem.insert) {
                                 if (typeof cntItem.insert == 'string') {
-                                    out += cntItem.insert.replace('\n', '<br/>');
+                                    //out += cntItem.insert.replace('\n', '<br/>');
+                                    out += cntItem.insert;
                                 }
                                 else if (cntItem.mentiontrigger) {
                                     let mention = cntItem.mentiontrigger;
@@ -119,8 +126,8 @@
                     }
                 }
             }
-        }
-        else if ("action_data:update" == cmd) {
+        },
+        "action_data:update": (args) => {
             msg_uuid = args.message_uuid;
             const item = document.getElementById('msg-'+ msg_uuid);
             if (item) {
@@ -131,8 +138,8 @@
                 li.innerText = `${action_cmd_name}: ${JSON.stringify(action_data)}`
                 ul.appendChild(li);
             }
-        }
-        else if ("timeline:start" === cmd) {
+        },
+        "timeline:start": (args) => {
             const block_type = args.block_type;
             if ('Editor' == block_type) {
                let src_path = args.src_path;
@@ -150,8 +157,8 @@
                document.getElementById('files').appendChild(div);
                document.getElementById('files').scrollTop = document.getElementById('files').scrollHeight;
             }
-        }
-        else if ("timeline:content" === cmd) {
+        },
+        "timeline:content": (args) => {
             const block_type = args.block_type;
             if ('Editor' == block_type) {
                let fileId = args.uuid;
@@ -171,14 +178,10 @@
                   termArea.scrollTop = termArea.scrollHeight;
                }
             }
+        },
+        "timeline:complete": (args) => {
         }
-        else if ("timeline:complete" === cmd) {
-            const block_type = args.block_type;
-            if ('Editor' == block_type) {
-            }
-        }
-
-    }
+    };
     </script>
 
     <script>
@@ -233,31 +236,50 @@
     </script>
 
     <script>
-        const ws = new WebSocket(`ws://${location.host}/ws/{{clientId}}`);
-        ws.onopen = () => {
-            console.log("Connected");
-            ws.send("2");
-        };
-        ws.onmessage = (event) => {
-            let data = event.data;
-            // 忽略心跳消息
-            if ('3' === data) {
-                return;
-            }
-            console.log(data);
-            try {
-            document.getElementById('output').value += (data + '\n');
-            document.getElementById('output').scrollTop = document.getElementById('output').scrollHeight;
-             createMsg(data);
-             } catch (e) {
-                console.error(e);
-             }
-        };
+    // 文档 https://socket.io/zh-CN/docs/v4
+    const socket = io(`${window.location.protocol}//${window.location.host}`, {
+        transports: ["websocket"],
+        path: "/socket.io",
+        timeout: 5000,
+        query: {
+            chat_id: "{{clientId}}"
+        },
+        autoConnect: true
+    });
+    socket.on('connect', () => {
+      console.log('Connected!');
+      //socket.emit('message', 'Hello server!');
+    });
+    socket.on('disconnect', () => {
+      console.log('disconnect!');
+    });
+    socket.on('connect_error', () => {
+      console.error('connect_error!');
+    });
 
-        // 主动心跳检测
-        setInterval(function() {
-            ws.send("2");
-        }, 5000);
+    socket.on('message', (data) => {
+      console.log(data);
+    });
+
+    // 添加一个监听器，当任何事件发出时将被触发。
+    socket.onAny((eventName, data) => {
+      if (eventName.includes('chat:')
+        || eventName.includes('msg:')
+        || eventName.includes('timeline:')
+        || eventName.includes('action_data:')
+        ) {
+            document.getElementById('output').value += (JSON.stringify([eventName, data]) + '\n');
+            document.getElementById('output').scrollTop = document.getElementById('output').scrollHeight;
+        }
+    });
+
+    for (let evtName in msgs_parser) {
+        if (msgs_parser.hasOwnProperty(evtName)) {
+            socket.on(evtName, msgs_parser[evtName]);
+        }
+    }
+
     </script>
+
 </body>
 </html>
