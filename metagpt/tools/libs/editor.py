@@ -114,7 +114,18 @@ class Editor(BaseModel):
     working_dir: Path = DEFAULT_WORKSPACE_ROOT
 
     def write(self, path: str, content: str):
-        """Write the whole content to a file. When used, make sure content arg contains the full content of the file."""
+        """Request to write content to a file. When used, make sure content arg contains the full content of the file.\
+        This tool is primarily used for **creating new files** or for scenarios where a **complete rewrite of an existing file is intentionally required**. \
+        If the file exists, it will be overwritten. If it doesn't exist, it will be created. \
+        This tool will automatically create any directories needed to write the file.
+
+        Args:
+            - path: str : The path of the file to write to (relative to the current workspace directory: {workspace_dir}).
+            - content: str : (required) The content to write to the file. When performing a full rewrite of an existing file or creating a new one, \
+            ALWAYS provide the COMPLETE intended content of the file, without any truncation or omissions. \
+            You MUST include ALL parts of the file, even if they haven't been modified. \
+            Do NOT include the line numbers in the content though, just the actual content of the file.
+        """
 
         path = self._try_fix_path(path)
 
@@ -131,7 +142,13 @@ class Editor(BaseModel):
         return f"The writing/coding the of the file {os.path.basename(path)}' is now completed. The file '{os.path.basename(path)}' has been successfully created."
 
     async def read(self, path: str) -> FileBlock:
-        """Read the whole content of a file. Using absolute paths as the argument for specifying the file location."""
+        """Request to read the contents of one file. \
+        The tool outputs line-numbered content (e.g. "1 | const x = 1") for easy reference when creating diffs or discussing code. \
+        Supports text extraction from PDF and DOCX files, but may not handle other binary files properly.
+
+        Args:
+            - path: str : (required) File path to read (relative to the current workspace directory: {workspace_dir}).
+        """
 
         path = self._try_fix_path(path)
 
@@ -284,9 +301,9 @@ class Editor(BaseModel):
         to view the file if you want to see more.
 
         Args:
-            path: str: The path to the file to open, preferred absolute path.
-            line_number: int | None = 1: The line number to move to. Defaults to 1.
-            context_lines: int | None = 100: Only shows this number of lines in the context window (usually from line 1), with line_number as the center (if possible). Defaults to 100.
+            - path: str: (required) The path to the file to open (relative to the current workspace directory: {workspace_dir}).
+            - line_number: int | None = 1: The line number to move to. Defaults to 1.
+            - context_lines: int | None = 100: Only shows this number of lines in the context window (usually from line 1), with line_number as the center (if possible). Defaults to 100.
         """
         if context_lines is None:
             context_lines = self.window
@@ -354,20 +371,21 @@ class Editor(BaseModel):
         output += self._print_window(self.current_file, self.current_line, self.window)
         return output
 
-    async def create_file(self, filename: str) -> str:
-        """Creates and opens a new file with the given name.
+    async def create_file(self, file_path: str) -> str:
+        """Creates and opens a new file with the given name.\
+        If the parent directory does not exist, it will be created.
 
         Args:
-            filename: str: The name of the file to create. If the parent directory does not exist, it will be created.
+            - file_path: str: (required) File path to create (relative to the current workspace directory: {workspace_dir}).
         """
-        filename = self._try_fix_path(filename)
+        file_path = self._try_fix_path(file_path)
 
-        if filename.exists():
-            raise FileExistsError(f"File '{filename}' already exists.")
-        await awrite(filename, "\n")
+        if file_path.exists():
+            raise FileExistsError(f"File '{file_path}' already exists.")
 
-        self.open_file(filename)
-        return f"[File {filename} created.]"
+        await awrite(file_path, "\n")
+        self.open_file(file_path)
+        return f"[File {file_path} created.]"
 
     @staticmethod
     def _append_impl(lines, content):
@@ -766,12 +784,12 @@ class Editor(BaseModel):
         003|contain i
         ```
         Args:
-            file_name (str): The name of the file to edit.
-            first_replaced_line_number (int): The line number to start the edit at, starting from 1.
-            first_replaced_line_content (str): The content of the start replace line, according to the first_replaced_line_number.
-            last_replaced_line_number (int): The line number to end the edit at (inclusive), starting from 1.
-            last_replaced_line_content (str): The content of the end replace line, according to the last_replaced_line_number.
-            new_content (str): The text to replace the current selection with, must conform to PEP8 standards. The content in the start line and end line will also be replaced.
+            - file_name (str): (required) The name of the file to edit (relative to the current workspace directory: {workspace_dir}).
+            - first_replaced_line_number (int): The line number to start the edit at, starting from 1.
+            - first_replaced_line_content (str): The content of the start replace line, according to the first_replaced_line_number.
+            - last_replaced_line_number (int): The line number to end the edit at (inclusive), starting from 1.
+            - last_replaced_line_content (str): The content of the end replace line, according to the last_replaced_line_number.
+            - new_content (str): The text to replace the current selection with, must conform to PEP8 standards. The content in the start line and end line will also be replaced.
 
         """
 
@@ -926,7 +944,8 @@ class Editor(BaseModel):
         return ret_str
 
     def insert_content_at_line(self, file_name: str, line_number: int, insert_content: str) -> str:
-        """Insert a complete block of code before the given line number in a file. That is, the new content will start at the beginning of the specified line, and the existing content of that line will be moved down.
+        """Insert a complete block of code before the given line number in a file. \
+        That is, the new content will start at the beginning of the specified line, and the existing content of that line will be moved down.
         This operation will NOT modify the content of the lines before or after the given line number.
         This function can not insert content the end of the file. Please use append_file instead,
         For example, if the file has the following content:
@@ -952,9 +971,9 @@ class Editor(BaseModel):
         ```
 
         Args:
-            file_name: (str): The name of the file to edit.
-            line_number (int): The line number (starting from 1) to insert the content after. The insert content will be add between the line of line_number-1 and line_number
-            insert_content (str): The content to insert betweed the previous_line_content and current_line_content.The insert_content must be a complete block of code at.
+            - file_name: (str): (required) The name of the file to edit (relative to the current workspace directory: {workspace_dir}).
+            - line_number (int): The line number (starting from 1) to insert the content after. The insert content will be add between the line of line_number-1 and line_number
+            - insert_content (str): The content to insert betweed the previous_line_content and current_line_content.The insert_content must be a complete block of code at.
 
         NOTE:
             This tool is exclusive. If you use this tool, you cannot use any other commands in the current response.
@@ -977,8 +996,8 @@ class Editor(BaseModel):
         It appends text `content` to the end of the specified file.
 
         Args:
-            file_name: str: The name of the file to edit.
-            content: str: The content to insert.
+            - file_name: str: (required) The name of the file to edit (relative to the current workspace directory: {workspace_dir}).
+            - content: str: The content to insert.
         NOTE:
             This tool is exclusive. If you use this tool, you cannot use any other commands in the current response.
             If you need to use it multiple times, wait for the next turn.
@@ -999,8 +1018,8 @@ class Editor(BaseModel):
         """Searches for search_term in all files in dir. If dir is not provided, searches in the current directory.
 
         Args:
-            search_term: str: The term to search for.
-            dir_path: str: The path to the directory to search.
+            - search_term: str: The term to search for.
+            - dir_path: str: The path to the directory to search (relative to the current workspace directory: {workspace_dir}).
         """
         dir_path = self._try_fix_path(dir_path)
         if not dir_path.is_dir():
@@ -1035,8 +1054,8 @@ class Editor(BaseModel):
         """Searches for search_term in file. If file is not provided, searches in the current open file.
 
         Args:
-            search_term: str: The term to search for.
-            file_path: str | None: The path to the file to search.
+            - search_term: str: The term to search for.
+            - file_path: str | None: The path to the file to search (relative to the current workspace directory: {workspace_dir}).
         """
         if file_path is None:
             file_path = self.current_file
@@ -1069,8 +1088,8 @@ class Editor(BaseModel):
         """Finds all files with the given name in the specified directory.
 
         Args:
-            file_name: str: The name of the file to find.
-            dir_path: str: The path to the directory to search.
+            - file_name: str: The name of the file to find (relative to the current workspace directory: {workspace_dir}).
+            - dir_path: str: The path to the directory to search (relative to the current workspace directory: {workspace_dir}).
         """
         file_name = self._try_fix_path(file_name)
         dir_path = self._try_fix_path(dir_path)
@@ -1094,15 +1113,40 @@ class Editor(BaseModel):
         return "\n".join(res_list)
 
     def _try_fix_path(self, path: Union[Path, str]) -> Path:
-        """Tries to fix the path if it is not absolute."""
-        if not isinstance(path, Path):
-            path = Path(path)
-        if not path.is_absolute():
-            path = self.working_dir / path
-        # yswang add
-        if not str(path).startswith(self.working_dir):
-            path = self.working_dir / path
-        return path
+        """
+        yswang modify
+        将 path 强制约束在 working_dir 目录下。
+        1. 相对路径 -> working_dir / path
+        2. 绝对路径 -> 去除根目录后拼接到 working_dir (例如: /etc/passwd -> /home/data/etc/passwd)
+        3. 安全检查 -> 解析后的路径必须在 working_dir 内部
+        """
+        print(f"============= dir: {self.working_dir}, file: {path}")
+        # 确保 path 是 Path 对象，并处理 ~
+        target_path = Path(path).expanduser() if not isinstance(path, Path) else path.expanduser()
+        if not target_path.is_absolute():
+            target_path = self.working_dir / target_path
+
+        # 解决掉路径中的 ../ ./ 等
+        try:
+            resolved = target_path.resolve(strict=False) # Python 3.12+
+        except Exception:
+            # 兼容 < python3.12 版本
+            try:
+                resolved = target_path.resolve()
+            except FileNotFoundError:
+                # 文件不存在时，解析父路径 + 保留文件名
+                resolved = target_path.parent.resolve() / target_path.name
+
+        if not resolved.is_relative_to(self.working_dir):
+            try:
+                # 剥离根（如 '/' 或 'C:\\'）
+                rel_part = resolved.relative_to(resolved.anchor)
+                resolved = self.working_dir / rel_part
+            except Exception:
+                # fallback：仅取 basename（保守策略）
+                resolved = self.working_dir / resolved.name
+
+        return resolved
 
     @staticmethod
     async def similarity_search(query: str, path: Union[str, Path]) -> List[str]:
@@ -1147,3 +1191,6 @@ class Editor(BaseModel):
 
     def set_role(self, role):
         self.reporter.set_role(role)
+
+    def set_working_dir(self, dir: Union[Path, str]):
+        self.working_dir = Path(dir) if not isinstance(dir, Path) else dir

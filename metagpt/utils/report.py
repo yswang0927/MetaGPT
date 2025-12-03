@@ -326,7 +326,7 @@ class ThoughtReporter(ObjectReporter):
         return super().report(value, name)
 
     # yswang add 支持过滤掉思考中输出的 ```json ``` 命令
-    async def async_report(self, value: Any, name: Literal["object"] = "object"):
+    async def async_report2(self, value: Any, name: Literal["object"] = "object"):
         if not isinstance(value, str):
             return await super().async_report(value, name)
 
@@ -337,7 +337,7 @@ class ThoughtReporter(ObjectReporter):
             return await super().async_report(filtered, name)
         return None
 
-    async def __aexit__(self, exc_type, exc_value, exc_tb):
+    async def __aexit__2(self, exc_type, exc_value, exc_tb):
         """Exit the asynchronous streaming callback context."""
         if self.enable_llm_stream and exc_type != asyncio.CancelledError:
             await get_llm_stream_queue().put(None)

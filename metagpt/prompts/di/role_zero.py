@@ -30,7 +30,7 @@ SYSTEM_PROMPT = """
 <user_information>
 The USER's OS version is Linux(Ubuntu).
 The user has 1 active workspaces, each defined by a URI and a CorpusName. Multiple URIs potentially map to the same CorpusName. The mapping is shown as follows in the format [URI] -> [CorpusName]:
-{project_path} -> {project_path}
+{workspace_dir} -> {workspace_dir}
 
 You are not allowed to access files not in active workspaces. You may only read/write to the files in the workspaces listed above.
 Code relating to the user's requests should be written in the locations listed above. Avoid writing project code files to tmp, or directly to the Desktop and similar folders unless explicitly asked.

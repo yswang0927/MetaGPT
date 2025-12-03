@@ -59,18 +59,22 @@ class Terminal:
         logger.info("The terminal is at:", output)
 
     async def run_command(self, cmd: str, daemon=False) -> str:
-        """
-        Executes a specified command in the terminal and streams the output back in real time.
-        This command maintains state across executions, such as the current directory,
-        allowing for sequential commands to be contextually aware.
+        """Request to execute a CLI command on the system. \
+        Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. \
+        You must tailor your command to the user's system and provide a clear explanation of what the command does. \
+        For command chaining, use the appropriate chaining syntax for the user's shell. \
+        Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. \
+        Prefer relative commands and paths that avoid location sensitivity for terminal consistency, \
+        e.g: `touch ./testdata/example.file`, `dir ./examples/model1/data/yaml`, or `go test ./cmd/front --config ./cmd/front/config.yml`.
+        The working directory to execute the command in: `{workspace_dir}`.
 
         Args:
-            cmd (str): The command to execute in the terminal.
-            daemon (bool): If True, executes the command in an asynchronous task, allowing
-                           the main program to continue execution.
+            - cmd : str : (required) The CLI command to execute. This should be valid for the current operating system. \
+            Ensure the command is properly formatted and does not contain any harmful instructions.\
+            The working directory to execute the command in: `{workspace_dir}`.
+            - daemon : bool : If True, executes the command in an asynchronous task, allowing the main program to continue execution.
         Returns:
-            str: The command's output or an empty string if `daemon` is True. Remember that
-                 when `daemon` is True, use the `get_stdout_output` method to get the output.
+            - str: The command's output or an empty string if `daemon` is True. Remember that when `daemon` is True, use the `get_stdout_output` method to get the output.
         """
         if self.process is None:
             await self._start_process()

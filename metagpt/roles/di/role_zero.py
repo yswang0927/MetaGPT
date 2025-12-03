@@ -104,9 +104,9 @@ class RoleZero(Role):
     # yswang add
     def after_properties_set(self):
         super().after_properties_set()
-
         self.editor.set_chat_id(self.chat_id)
         self.editor.set_role(self)
+        self.editor.set_working_dir(self.context.working_dir)
         self.browser.set_chat_id(self.chat_id)
         self.browser.set_role(self)
         if self.planner:
@@ -233,13 +233,28 @@ class RoleZero(Role):
 
         ### 3. Tool/Command Info ###
         tools = await self.tool_recommender.recommend_tools()
+
+        # yswang 替换 tools中 description 中的 {workspace_dir} 变量
+        for tool in tools:
+            try:
+                schemas = tool.schemas
+                if isinstance(schemas, dict):
+                    methods = schemas["methods"]
+                    if isinstance(methods, dict):
+                        for md in methods.values():
+                            # md = {type:str, description:str, signature:str, parameters:str}
+                            md['description'] = md['description'].format(workspace_dir=self.context.working_dir)
+                            md['parameters'] = md['parameters'].format(workspace_dir=self.context.working_dir)
+            except Exception as e:
+                raise e
+
         tool_info = json.dumps({tool.name: tool.schemas for tool in tools})
 
         ### Role Instruction ###
         instruction = self.instruction.strip()
         system_prompt = self.system_prompt.format(
             role_info=self._get_prefix(),
-            project_path=self.context.working_dir,
+            workspace_dir=self.context.working_dir,
             task_type_desc=self.task_type_desc,
             available_commands=tool_info,
             example=example,
